@@ -1,0 +1,913 @@
+/*
+ * TEMPORARY — theme experiments.
+ * Each theme overrides tokens from design-system/tokens.css on <html data-theme="…">,
+ * plus a few component rules from site.css where a token isn't enough.
+ * Add or rename themes here and in the THEMES list in theme-switcher.js.
+ * Delete this file and theme-switcher.js once a direction is chosen.
+ */
+
+/* Fonts for all three themes. Browsers only download the faces a page actually uses. */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Fredoka:wght@400..700&family=Nunito:wght@400..800&family=Caveat+Brush&family=Patrick+Hand&family=Alegreya:wght@400..900&family=Alegreya+Sans:wght@400;500;700;800&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..700&family=Jost:wght@300..600&display=swap");
+
+/* Obloom (Tema 6 — Magazine), from assets/. NOTE: this is a demo build licensed
+   for personal use only; its digits are "Personal Use" watermarks, so the
+   unicode-range below leaves out 0–9 and digits fall back to the next font. */
+@font-face {
+  font-family: "Obloom";
+  src: url("../assets/obloom.woff2") format("woff2"), url("../assets/obloom.woff") format("woff");
+  font-display: swap;
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
+
+/* ===============================================================
+ * Tema 1 — Editorial
+ * Serif headlines, softer contrast, one accent colour.
+ * ============================================================= */
+:root[data-theme="tema-1"] {
+  --font-display: "Fraunces", Georgia, serif;
+  --weight-black: 500;
+  --leading-display: 1.02;
+  --tracking-display: -0.02em;
+
+  /* Softer text: #655e4e is 5.8:1 on cream, 5.6:1 on linen */
+  --color-text: #655e4e;
+  --color-heading: var(--jm-ink);
+  --color-link: var(--jm-ink);
+  --color-accent: var(--jm-orange-deep);
+
+  /* Two neutrals instead of a pastel per page */
+  --color-section-projeto: var(--jm-linen);
+  --color-section-apjm: var(--jm-linen);
+  --color-section-calendario: var(--jm-linen);
+  --color-section-newsletter: var(--jm-linen);
+  --color-on-section: var(--color-text);
+  --color-inverse-bg: var(--jm-linen);
+  --color-inverse-text: var(--color-text);
+
+  --t1-rule: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+:root[data-theme="tema-1"] .site-header { border-bottom: var(--t1-rule); }
+:root[data-theme="tema-1"] .site-nav a { font-weight: 500; }
+:root[data-theme="tema-1"] .site-nav a:is(:hover, [aria-current="page"]) { text-decoration-thickness: 1px; }
+:root[data-theme="tema-1"] .lead { font-family: var(--font-display); font-style: italic; font-weight: 400; }
+:root[data-theme="tema-1"] .steps li { border-top: var(--t1-rule); }
+:root[data-theme="tema-1"] .steps li::before { font-style: italic; color: var(--color-accent); }
+:root[data-theme="tema-1"] .rows { border-bottom: var(--t1-rule); }
+:root[data-theme="tema-1"] .rows li { border-top: var(--t1-rule); font-weight: 500; }
+:root[data-theme="tema-1"] .button {
+  background: transparent;
+  color: var(--color-text) !important;
+  box-shadow: inset 0 0 0 1px currentColor;
+  font-weight: 500;
+}
+:root[data-theme="tema-1"] .button:hover { background: var(--jm-ink); color: var(--color-bg) !important; box-shadow: none; }
+:root[data-theme="tema-1"] .site-footer { border-top: var(--t1-rule); }
+:root[data-theme="tema-1"] .site-footer strong { font-family: var(--font-display); font-weight: 500; }
+
+
+/* ===============================================================
+ * Tema 2 — Lúdico
+ * Rounded type, rounded "card" bands, more colour, bouncy buttons.
+ * ============================================================= */
+:root[data-theme="tema-2"] {
+  --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, sans-serif;
+  --weight-black: 700;
+  --leading-display: 1;
+  --tracking-display: -0.01em;
+  --color-surface: var(--jm-mist);
+
+  --t2-inset: clamp(0.5rem, 1.2vw, 0.875rem);
+  --t2-radius: clamp(1.5rem, 4vw, 3rem);
+  --t2-rule: 3px dashed color-mix(in srgb, currentColor 35%, transparent);
+}
+:root[data-theme="tema-2"] .site-header { border-bottom: 0; }
+:root[data-theme="tema-2"] .site-logo img { transition: rotate 0.3s; }
+:root[data-theme="tema-2"] .site-logo:hover img { rotate: -8deg; }
+
+/* Navigation as coloured pills */
+:root[data-theme="tema-2"] .site-nav ul { gap: var(--space-2); }
+:root[data-theme="tema-2"] .site-nav a {
+  display: block;
+  padding: 0.3em 0.9em;
+  border-radius: var(--radius-pill);
+  transition: background-color 0.2s, translate 0.2s;
+}
+:root[data-theme="tema-2"] .site-nav li:nth-child(5n+1) a { --pill: var(--jm-butter); }
+:root[data-theme="tema-2"] .site-nav li:nth-child(5n+2) a { --pill: var(--jm-lilac); }
+:root[data-theme="tema-2"] .site-nav li:nth-child(5n+3) a { --pill: var(--jm-sky); }
+:root[data-theme="tema-2"] .site-nav li:nth-child(5n+4) a { --pill: var(--jm-blush); }
+:root[data-theme="tema-2"] .site-nav li:nth-child(5n+5) a { --pill: var(--jm-mist); }
+:root[data-theme="tema-2"] .site-nav a:is(:hover, [aria-current="page"]) {
+  background: var(--pill);
+  text-decoration: none;
+  translate: 0 -2px;
+}
+
+/* Bands become rounded cards with a little breathing room */
+:root[data-theme="tema-2"] main { gap: var(--t2-inset); padding: var(--t2-inset) var(--t2-inset) 0; }
+:root[data-theme="tema-2"] .band { border-radius: var(--t2-radius); }
+:root[data-theme="tema-2"] .band h2 { rotate: -1.5deg; transform-origin: left; }
+:root[data-theme="tema-2"] .prose a { text-decoration-style: wavy; text-decoration-thickness: 1.5px; }
+
+/* Hero: the trees peek in from the corner, with the brand's orange dots */
+:root[data-theme="tema-2"] .hero { position: relative; overflow: hidden; }
+:root[data-theme="tema-2"] .hero > * { position: relative; z-index: 1; }
+:root[data-theme="tema-2"] .hero::after {
+  content: "";
+  position: absolute;
+  right: clamp(-2rem, -2vw, 0rem);
+  bottom: -1.5rem;
+  width: clamp(7rem, 22vw, 17rem);
+  aspect-ratio: 1;
+  background: url("../design-system/logo/jardim-da-mata-mark.png") center / contain no-repeat;
+  rotate: 8deg;
+  opacity: 0.9;
+}
+:root[data-theme="tema-2"] .hero::before {
+  content: "";
+  position: absolute;
+  top: 2.5rem;
+  right: clamp(1.5rem, 6vw, 6rem);
+  width: 6rem;
+  height: 4rem;
+  background: radial-gradient(circle, var(--jm-orange) 0 0.3rem, transparent 0.33rem) 0 0 / 1.5rem 1.5rem;
+  rotate: -20deg;
+}
+
+/* Numbered list: each number in a coloured bubble */
+:root[data-theme="tema-2"] .steps { gap: var(--space-3); }
+:root[data-theme="tema-2"] .steps li {
+  align-items: center;
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-bg);
+}
+:root[data-theme="tema-2"] .steps li::before {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--bubble, var(--jm-butter));
+  color: var(--jm-ink);
+  font-size: var(--text-lg);
+  content: counter(step);
+}
+:root[data-theme="tema-2"] .steps li:nth-child(4n+2)::before { --bubble: var(--jm-blush); }
+:root[data-theme="tema-2"] .steps li:nth-child(4n+3)::before { --bubble: var(--jm-sky); }
+:root[data-theme="tema-2"] .steps li:nth-child(4n+4)::before { --bubble: var(--jm-lilac); }
+
+:root[data-theme="tema-2"] .rows { border-bottom: var(--t2-rule); }
+:root[data-theme="tema-2"] .rows li { border-top: var(--t2-rule); }
+
+/* Chunky orange buttons. White on orange is 3.3:1, so the label stays
+   large and bold (≥ 18.66px bold counts as large text). */
+:root[data-theme="tema-2"] .button {
+  padding: 0.6em 1.3em;
+  background: var(--jm-orange);
+  color: var(--color-on-accent) !important;
+  font-size: 1.2rem;
+  font-weight: 800;
+  box-shadow: 0 5px 0 var(--jm-orange-deep);
+  transition: translate 0.15s, rotate 0.15s, box-shadow 0.15s;
+}
+:root[data-theme="tema-2"] .button:hover { background: var(--jm-orange); translate: 0 -3px; rotate: -2deg; box-shadow: 0 8px 0 var(--jm-orange-deep); }
+:root[data-theme="tema-2"] .button:active { translate: 0 4px; box-shadow: 0 1px 0 var(--jm-orange-deep); }
+
+:root[data-theme="tema-2"] .site-footer {
+  margin: var(--t2-inset) var(--t2-inset) 0;
+  border-radius: var(--t2-radius) var(--t2-radius) 0 0;
+}
+
+@media (max-width: 40rem) {
+  :root[data-theme="tema-2"] .hero::before { display: none; }
+  :root[data-theme="tema-2"] .hero::after { width: 5.5rem; bottom: -1rem; }
+  :root[data-theme="tema-2"] .hero { padding-bottom: 6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="tema-2"] * { transition: none !important; }
+}
+
+
+/* ===============================================================
+ * Tema 3 — Dinâmico
+ * 12-column grid with sticky side headings, bands that overlap like
+ * stacked sheets, and scroll-linked motion.
+ * ============================================================= */
+:root[data-theme="tema-3"] {
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --weight-black: 800;
+  --tracking-display: -0.045em;
+  --text-display: clamp(3.5rem, 13vw, 12rem);
+
+  --t3-pad: clamp(var(--space-7), 8vw, var(--space-9));
+  --t3-overlap: clamp(2rem, 5vw, 4.5rem);
+  --t3-radius: clamp(1.75rem, 4vw, 3.5rem);
+  --t3-shadow: 0 -18px 40px -24px rgb(83 77 60 / 0.45);
+}
+:root[data-theme="tema-3"] .site-header { border-bottom: 0; }
+
+/* Overlapping bands: each one slides over the bottom of the previous */
+:root[data-theme="tema-3"] .band {
+  position: relative;
+  padding-bottom: calc(var(--t3-pad) + var(--t3-overlap));
+}
+:root[data-theme="tema-3"] .band:not(:first-child),
+:root[data-theme="tema-3"] .site-footer {
+  margin-top: calc(-1 * var(--t3-overlap));
+  border-radius: var(--t3-radius) var(--t3-radius) 0 0;
+  box-shadow: var(--t3-shadow);
+}
+:root[data-theme="tema-3"] .site-footer { position: relative; padding-top: calc(var(--space-8) + var(--t3-overlap) / 2); }
+
+/* Wider screens: 12-column grid. Headings sit in a sticky side column,
+   and the side swaps on every other band. */
+@media (min-width: 56rem) {
+  :root[data-theme="tema-3"] .band {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--space-6);
+    row-gap: 0;
+    align-items: start;
+  }
+  :root[data-theme="tema-3"] .band > * { grid-column: 6 / -1; }
+  :root[data-theme="tema-3"] .band > h2 {
+    grid-column: 1 / 6;
+    grid-row: 1 / span 4;
+    position: sticky;
+    top: 7rem;
+    margin: 0;
+  }
+  :root[data-theme="tema-3"] .band:nth-child(even):not(.hero) > * { grid-column: 1 / 8; }
+  :root[data-theme="tema-3"] .band:nth-child(even):not(.hero) > h2 { grid-column: 9 / -1; text-align: right; }
+
+  /* Hero: title across the full width, intro pushed to the right */
+  :root[data-theme="tema-3"] .hero { row-gap: var(--space-6); }
+  :root[data-theme="tema-3"] .hero > h1 { grid-column: 1 / -1; }
+  :root[data-theme="tema-3"] .hero > :not(h1) { grid-column: 7 / -1; }
+
+  :root[data-theme="tema-3"] .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-6); max-width: none; }
+}
+
+/* Scroll-linked motion. Only where supported, and never with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    /* Content rises into place as it enters the viewport */
+    :root[data-theme="tema-3"] .band > :not(.steps, .rows, h1),
+    :root[data-theme="tema-3"] .steps li,
+    :root[data-theme="tema-3"] .rows li {
+      animation: t3-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+    /* The page title drifts down and fades as you scroll away from it */
+    :root[data-theme="tema-3"] .hero h1 {
+      animation: t3-drift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 70vh;
+    }
+    /* The header gains a shadow and the logo shrinks once you start scrolling */
+    :root[data-theme="tema-3"] .site-header {
+      animation: t3-header linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 12rem;
+    }
+    :root[data-theme="tema-3"] .site-logo img {
+      transform-origin: left center;
+      animation: t3-logo linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 12rem;
+    }
+  }
+}
+@keyframes t3-rise { from { opacity: 0; translate: 0 2.5rem; } to { opacity: 1; translate: 0 0; } }
+@keyframes t3-drift { to { opacity: 0.35; translate: 0 18%; } }
+@keyframes t3-header { to { box-shadow: 0 10px 30px -18px rgb(83 77 60 / 0.5); } }
+@keyframes t3-logo { to { scale: 0.8; } }
+
+
+/* ===============================================================
+ * Scribly
+ * Hand-written type, crayon doodles drifting behind every band,
+ * scribbled underlines, wavy dividers and hand-drawn buttons.
+ * Illustrations: themes/scribbly/*.svg
+ * ============================================================= */
+:root[data-theme="scribbly"] {
+  --font-display: "Caveat Brush", "Patrick Hand", cursive;
+  --font-body: "Patrick Hand", "Comic Sans MS", cursive;
+  /* Both faces have a single weight; avoid faux bold */
+  --weight-regular: 400;
+  --weight-bold: 400;
+  --weight-black: 400;
+  --text-base: 1.3rem;
+  --text-lg: 1.65rem;
+  --text-xl: 2.25rem;
+  --text-3xl: clamp(2.75rem, 7vw, 5rem);
+  --text-display: clamp(3.75rem, 12vw, 9.5rem);
+  --leading-display: 1;
+  --tracking-display: 0;
+
+  --sc-wave: url("themes/scribbly/wave.svg") repeat-x;
+  --sc-underline: url("themes/scribbly/underline.svg") no-repeat;
+}
+
+:root[data-theme="scribbly"] .site-header {
+  border-bottom: 0;
+  padding-bottom: calc(var(--space-3) + 6px);
+  background: var(--sc-wave) left bottom / 60px 10px, var(--color-bg);
+}
+:root[data-theme="scribbly"] .site-logo img { transition: rotate 0.3s; }
+:root[data-theme="scribbly"] .site-logo:hover img { rotate: -10deg; }
+:root[data-theme="scribbly"] .site-nav a { font-size: 1.15em; }
+:root[data-theme="scribbly"] .site-nav a:is(:hover, [aria-current="page"]) {
+  text-decoration: none;
+  padding-bottom: 0.25em;
+  background: var(--sc-underline) center bottom / 100% 0.45em;
+}
+
+/* Doodles drift slowly behind every band */
+:root[data-theme="scribbly"] .band { position: relative; overflow: hidden; }
+:root[data-theme="scribbly"] .band > * { position: relative; z-index: 1; }
+:root[data-theme="scribbly"] .band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("themes/scribbly/doodles.svg") 0 0 / 640px 640px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Wavy crayon line between bands */
+:root[data-theme="scribbly"] .band:not(:first-child)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: var(--sc-wave) left top / 60px 10px;
+}
+
+/* The hero gets a smiling sun that rocks gently */
+:root[data-theme="scribbly"] .hero::after {
+  content: "";
+  position: absolute;
+  top: clamp(1rem, 4vw, 3rem);
+  right: var(--gutter);
+  width: clamp(5.5rem, 14vw, 10rem);
+  aspect-ratio: 1;
+  background: url("themes/scribbly/sun.svg") center / contain no-repeat;
+}
+
+:root[data-theme="scribbly"] .hero h1 {
+  padding-bottom: 0.18em;
+  background: var(--sc-underline) left bottom / min(100%, 7em) 0.28em;
+}
+:root[data-theme="scribbly"] .band h2 {
+  width: fit-content;
+  padding-bottom: 0.15em;
+  background: var(--sc-underline) left bottom / 100% 0.3em;
+}
+:root[data-theme="scribbly"] .prose a { text-decoration-style: wavy; text-decoration-color: var(--jm-orange); }
+
+/* Numbers inside a scribbled circle; wavy lines instead of rules */
+:root[data-theme="scribbly"] .steps li {
+  align-items: center;
+  border-top: 0;
+  padding-top: var(--space-4);
+  background: var(--sc-wave) left top / 60px 10px;
+}
+:root[data-theme="scribbly"] .steps li::before {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  aspect-ratio: 1;
+  background: url("themes/scribbly/circle.svg") center / contain no-repeat;
+  color: var(--color-text);
+  content: counter(step);
+}
+:root[data-theme="scribbly"] .rows { border-bottom: 0; padding-bottom: 10px; background: var(--sc-wave) left bottom / 60px 10px; }
+:root[data-theme="scribbly"] .rows li { border-top: 0; background: var(--sc-wave) left top / 60px 10px; }
+
+/* Hand-drawn buttons */
+:root[data-theme="scribbly"] .button {
+  padding: 0.35em 1.1em;
+  border: 3px solid var(--jm-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  background: var(--jm-butter);
+  color: var(--jm-ink) !important;
+  font-size: 1.45rem;
+  rotate: -1.5deg;
+  transition: rotate 0.2s, background-color 0.2s;
+}
+:root[data-theme="scribbly"] .button:hover { background: var(--jm-blush); color: var(--jm-ink) !important; rotate: 1.5deg; }
+
+:root[data-theme="scribbly"] .site-footer { position: relative; }
+:root[data-theme="scribbly"] .site-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("themes/scribbly/doodles.svg") 200px 120px / 640px 640px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+:root[data-theme="scribbly"] .site-footer > * { position: relative; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="scribbly"] .band::before { animation: sc-drift 120s linear infinite; }
+  :root[data-theme="scribbly"] .band:nth-child(even)::before { animation-direction: reverse; }
+  :root[data-theme="scribbly"] .hero::after { animation: sc-rock 3.5s ease-in-out infinite alternate; }
+  :root[data-theme="scribbly"] .steps li:hover::before { animation: sc-wiggle 0.4s ease-in-out 2; }
+}
+@keyframes sc-drift { to { background-position: 640px 320px; } }
+@keyframes sc-rock { from { rotate: -7deg; } to { rotate: 7deg; } }
+@keyframes sc-wiggle { 50% { rotate: 12deg; } }
+
+
+/* ===============================================================
+ * Forest (Tema 5 — Mata)
+ * Pine greens, bark and sand; a humanist serif; and three pine
+ * drawings (themes/forest/tree-1/2/3.svg) used as CSS masks, so any
+ * palette colour can tint them:
+ *   - a packed forest in four depth layers behind every band
+ *   - a dark packed forest rising out of the footer
+ * ============================================================= */
+:root[data-theme="forest"] {
+  /* Forest palette. Text pairs checked: pine-900 is 6.9:1+ on every band
+     colour, pine-700 4.6:1+, cone 5.3:1+ on sand and fern; sand on pine-900 is 10.3:1. */
+  --f-pine-900: #1f3a2b;
+  --f-pine-700: #2f5640;
+  --f-bark: #6b4a2f;
+  --f-cone: #8a4b22;
+  --f-sand: #f1ead8;
+  --f-fern: #dfe6cf;
+  --f-needle: #b9c79a;
+  --f-moss: #cdd5b0;
+  --f-dune: #e6d5b8;
+
+  --font-display: "Alegreya", Georgia, serif;
+  --font-body: "Alegreya Sans", system-ui, sans-serif;
+  --weight-black: 800;
+  --leading-display: 1;
+  --tracking-display: -0.015em;
+  --text-base: 1.2rem;
+
+  --color-bg: var(--f-sand);
+  --color-surface: var(--f-fern);
+  --color-text: var(--f-pine-900);
+  --color-text-muted: var(--f-pine-700);
+  --color-heading: var(--f-pine-700);
+  --color-link: var(--f-cone);
+  --color-accent: var(--f-cone);
+  --color-focus: var(--f-cone);
+  --color-on-accent: var(--f-sand);
+  --color-section-projeto: var(--f-needle);
+  --color-section-apjm: var(--f-moss);
+  --color-section-calendario: var(--f-dune);
+  --color-section-newsletter: var(--f-fern);
+  --color-on-section: var(--f-pine-900);
+  --color-inverse-bg: var(--f-pine-900);
+  --color-inverse-text: var(--f-sand);
+
+  --f-rule: 1.5px solid color-mix(in srgb, var(--f-pine-900) 28%, transparent);
+
+  /* The three trees. Aspect ratios come from each file's viewBox. */
+  --f-tree-1: url("themes/forest/tree-1.svg");   /* 1601 × 3511 */
+  --f-tree-2: url("themes/forest/tree-2.svg");   /* 1654 × 3455 */
+  --f-tree-3: url("themes/forest/tree-3.svg");   /* 1715 × 3339 */
+  --f-forest: clamp(10rem, 22vw, 19rem);         /* height of the packed forest */
+}
+
+:root[data-theme="forest"] .site-header { border-bottom: var(--f-rule); }
+:root[data-theme="forest"] .steps li { border-top: var(--f-rule); }
+:root[data-theme="forest"] .steps li::before { color: var(--f-cone); }
+:root[data-theme="forest"] .rows { border-bottom: var(--f-rule); }
+:root[data-theme="forest"] .rows li { border-top: var(--f-rule); }
+:root[data-theme="forest"] .lead { font-family: var(--font-display); font-weight: 500; font-style: italic; }
+
+:root[data-theme="forest"] .button { background: var(--f-pine-700); color: var(--f-sand) !important; }
+:root[data-theme="forest"] .button:hover { background: var(--f-cone); color: var(--f-sand) !important; }
+
+/* ---------------------------------------------------------------
+ * Bands: a packed forest in four depth layers
+ *
+ * Each layer is one element tinted a single colour through the three
+ * tree masks. Back layers are paler, slightly shorter and denser; front
+ * layers darker, slightly taller and more spread out, which reads as
+ * depth. Tree sizes stay within 90–110% of a default height (the layer
+ * height, --f-forest, is 110%). Within a layer the three trees differ a
+ * little in size and sink below the band edge by different amounts, so
+ * neighbouring trees show at different heights. Each tree's mask box is wider than the tree (the SVG centres
+ * itself in it), which sets the spacing between trees in a row.
+ *
+ * A band has four spare pseudo-elements: its own ::before/::after and
+ * those of its first child. The band is its own stacking context, so
+ * all four (z-index -1) paint above the band colour and below the text.
+ * Paint order follows the DOM: band::before → child::before →
+ * child::after → band::after, i.e. back to front.
+ * ------------------------------------------------------------- */
+:root[data-theme="forest"] .band {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding-bottom: calc(clamp(var(--space-7), 8vw, var(--space-9)) + var(--f-forest) * 0.85);
+}
+:root[data-theme="forest"] .band::before,
+:root[data-theme="forest"] .band::after,
+:root[data-theme="forest"] .band > :first-child::before,
+:root[data-theme="forest"] .band > :first-child::after {
+  content: "";
+  position: absolute;
+  left: -5rem;
+  right: -5rem;
+  bottom: 0;
+  z-index: -1;
+  height: var(--f-forest);
+  background: color-mix(in srgb, var(--band-bg, var(--color-bg)) calc(100% - var(--f-ink)), var(--f-pine-900));
+  pointer-events: none;
+}
+/* Layer 1 (back): palest, shortest (90–93%) */
+:root[data-theme="forest"] .band::before {
+  --f-ink: 7%;
+  -webkit-mask:
+    var(--f-tree-2) left 0rem bottom calc(var(--f-forest) * -0.06) / calc(var(--f-forest) * 0.451) calc(var(--f-forest) * 0.818) repeat-x,
+    var(--f-tree-3) left 2.4rem bottom calc(var(--f-forest) * -0.02) / calc(var(--f-forest) * 0.565) calc(var(--f-forest) * 0.845) repeat-x,
+    var(--f-tree-1) left 4.6rem bottom calc(var(--f-forest) * -0.09) / calc(var(--f-forest) * 0.453) calc(var(--f-forest) * 0.827) repeat-x;
+  mask:
+    var(--f-tree-2) left 0rem bottom calc(var(--f-forest) * -0.06) / calc(var(--f-forest) * 0.451) calc(var(--f-forest) * 0.818) repeat-x,
+    var(--f-tree-3) left 2.4rem bottom calc(var(--f-forest) * -0.02) / calc(var(--f-forest) * 0.565) calc(var(--f-forest) * 0.845) repeat-x,
+    var(--f-tree-1) left 4.6rem bottom calc(var(--f-forest) * -0.09) / calc(var(--f-forest) * 0.453) calc(var(--f-forest) * 0.827) repeat-x;
+}
+/* Layer 2 (95–98%) */
+:root[data-theme="forest"] .band > :first-child::before {
+  --f-ink: 12%;
+  -webkit-mask:
+    var(--f-tree-1) left 1.3rem bottom calc(var(--f-forest) * -0.05) / calc(var(--f-forest) * 0.597) calc(var(--f-forest) * 0.873) repeat-x,
+    var(--f-tree-3) left 3.9rem bottom 0 / calc(var(--f-forest) * 0.779) calc(var(--f-forest) * 0.891) repeat-x,
+    var(--f-tree-2) left 6.2rem bottom calc(var(--f-forest) * -0.08) / calc(var(--f-forest) * 0.662) calc(var(--f-forest) * 0.864) repeat-x;
+  mask:
+    var(--f-tree-1) left 1.3rem bottom calc(var(--f-forest) * -0.05) / calc(var(--f-forest) * 0.597) calc(var(--f-forest) * 0.873) repeat-x,
+    var(--f-tree-3) left 3.9rem bottom 0 / calc(var(--f-forest) * 0.779) calc(var(--f-forest) * 0.891) repeat-x,
+    var(--f-tree-2) left 6.2rem bottom calc(var(--f-forest) * -0.08) / calc(var(--f-forest) * 0.662) calc(var(--f-forest) * 0.864) repeat-x;
+}
+/* Layer 3 (101–104%) */
+:root[data-theme="forest"] .band > :first-child::after {
+  --f-ink: 18%;
+  -webkit-mask:
+    var(--f-tree-3) left 0.6rem bottom calc(var(--f-forest) * -0.03) / calc(var(--f-forest) * 0.953) calc(var(--f-forest) * 0.927) repeat-x,
+    var(--f-tree-2) left 3.1rem bottom calc(var(--f-forest) * -0.07) / calc(var(--f-forest) * 1.041) calc(var(--f-forest) * 0.945) repeat-x,
+    var(--f-tree-1) left 5.3rem bottom 0 / calc(var(--f-forest) * 0.879) calc(var(--f-forest) * 0.918) repeat-x;
+  mask:
+    var(--f-tree-3) left 0.6rem bottom calc(var(--f-forest) * -0.03) / calc(var(--f-forest) * 0.953) calc(var(--f-forest) * 0.927) repeat-x,
+    var(--f-tree-2) left 3.1rem bottom calc(var(--f-forest) * -0.07) / calc(var(--f-forest) * 1.041) calc(var(--f-forest) * 0.945) repeat-x,
+    var(--f-tree-1) left 5.3rem bottom 0 / calc(var(--f-forest) * 0.879) calc(var(--f-forest) * 0.918) repeat-x;
+}
+/* Layer 4 (front): darkest, tallest (107–110%) */
+:root[data-theme="forest"] .band::after {
+  --f-ink: 26%;
+  -webkit-mask:
+    var(--f-tree-2) left 1.9rem bottom calc(var(--f-forest) * -0.04) / calc(var(--f-forest) * 1.341) calc(var(--f-forest) * 1.0) repeat-x,
+    var(--f-tree-1) left 4.1rem bottom 0 / calc(var(--f-forest) * 1.42) calc(var(--f-forest) * 0.973) repeat-x,
+    var(--f-tree-3) left 0rem bottom calc(var(--f-forest) * -0.06) / calc(var(--f-forest) * 1.514) calc(var(--f-forest) * 0.982) repeat-x;
+  mask:
+    var(--f-tree-2) left 1.9rem bottom calc(var(--f-forest) * -0.04) / calc(var(--f-forest) * 1.341) calc(var(--f-forest) * 1.0) repeat-x,
+    var(--f-tree-1) left 4.1rem bottom 0 / calc(var(--f-forest) * 1.42) calc(var(--f-forest) * 0.973) repeat-x,
+    var(--f-tree-3) left 0rem bottom calc(var(--f-forest) * -0.06) / calc(var(--f-forest) * 1.514) calc(var(--f-forest) * 0.982) repeat-x;
+}
+/* Mirror the forest on every other band so neighbouring bands differ */
+:root[data-theme="forest"] .band:nth-child(even)::before,
+:root[data-theme="forest"] .band:nth-child(even)::after,
+:root[data-theme="forest"] .band:nth-child(even) > :first-child::before,
+:root[data-theme="forest"] .band:nth-child(even) > :first-child::after {
+  scale: -1 1;
+}
+
+/* ---------------------------------------------------------------
+ * Footer: a dark packed forest rises out of it into the band above
+ * ------------------------------------------------------------- */
+:root[data-theme="forest"] .site-footer { position: relative; }
+:root[data-theme="forest"] .site-footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% - 1px);
+  height: clamp(5rem, 11vw, 9rem);
+  background: var(--color-inverse-bg);
+  -webkit-mask:
+    var(--f-tree-3) 0 100% / auto 100% repeat-x,
+    var(--f-tree-1) 2rem 100% / auto 72% repeat-x,
+    var(--f-tree-2) 0.8rem 100% / auto 52% repeat-x;
+  mask:
+    var(--f-tree-3) 0 100% / auto 100% repeat-x,
+    var(--f-tree-1) 2rem 100% / auto 72% repeat-x,
+    var(--f-tree-2) 0.8rem 100% / auto 52% repeat-x;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------
+ * Motion: each layer drifts sideways at its own pace as a band
+ * scrolls past (front layers move more), which deepens the parallax
+ * ------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    :root[data-theme="forest"] .band::before,
+    :root[data-theme="forest"] .band::after,
+    :root[data-theme="forest"] .band > :first-child::before,
+    :root[data-theme="forest"] .band > :first-child::after {
+      animation: f-parallax linear both;
+      animation-timeline: view();
+    }
+    :root[data-theme="forest"] .band::before { --f-drift: 1rem; }
+    :root[data-theme="forest"] .band > :first-child::before { --f-drift: 2rem; }
+    :root[data-theme="forest"] .band > :first-child::after { --f-drift: 3rem; }
+    :root[data-theme="forest"] .band::after { --f-drift: 4.5rem; }
+  }
+}
+@keyframes f-parallax {
+  from { translate: calc(-1 * var(--f-drift, 2rem)) 0; }
+  to { translate: var(--f-drift, 2rem) 0; }
+}
+
+
+/* ===============================================================
+ * Magazine (Tema 6)
+ * A fashion-magazine feel: warm paper and near-black ink, one muted
+ * accent, hairline rules, generous white space. Obloom for headlines
+ * (like a cover signature), Bodoni Moda for leads, numerals and drop
+ * caps, Jost for body text and spaced-capital labels.
+ * ============================================================= */
+:root[data-theme="magazine"] {
+  /* Contrast on paper: ink 16.2:1, grey 5.5:1, accent 7.1:1; paper on ink 16.2:1 */
+  --mg-paper: #faf7f2;
+  --mg-ink: #1c1a17;
+  --mg-grey: #6a645b;
+  --mg-accent: #8c3b2e;
+  --mg-hair: 1px solid color-mix(in srgb, var(--mg-ink) 20%, transparent);
+  --mg-serif: "Bodoni Moda", Didot, "Bodoni 72", serif;
+
+  /* Digits fall through to Bodoni Moda: Obloom's digits are
+     "Personal Use" watermarks (see the @font-face at the top) */
+  --font-display: "Obloom", "Bodoni Moda", serif;
+  --font-body: "Jost", system-ui, sans-serif;
+  --weight-regular: 400;
+  --weight-bold: 500;
+  --weight-black: 400;              /* Obloom has a single weight; avoid faux bold */
+  --leading-display: 1;
+  --tracking-display: 0;
+  --leading-body: 1.75;
+  --text-base: 1.125rem;
+  --text-display: clamp(4rem, 13vw, 11rem);
+  --text-3xl: clamp(2.75rem, 6vw, 5rem);
+
+  --color-bg: var(--mg-paper);
+  --color-surface: var(--mg-paper);
+  --color-text: var(--mg-ink);
+  --color-text-muted: var(--mg-grey);
+  --color-heading: var(--mg-ink);
+  --color-link: var(--mg-ink);
+  --color-accent: var(--mg-accent);
+  --color-focus: var(--mg-accent);
+  --color-section-projeto: var(--mg-paper);
+  --color-section-apjm: var(--mg-paper);
+  --color-section-calendario: var(--mg-paper);
+  --color-section-newsletter: var(--mg-paper);
+  --color-on-section: var(--mg-ink);
+}
+
+/* Spaced capitals, used for the menu, labels and buttons */
+:root[data-theme="magazine"] :is(.site-nav a, .button, .site-footer ul) {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Header: a slim masthead, logo above a centred menu on wider screens */
+:root[data-theme="magazine"] .site-header { border-bottom: var(--mg-hair); }
+:root[data-theme="magazine"] .site-nav a:is(:hover, [aria-current="page"]) {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.7em;
+}
+@media (min-width: 48rem) {
+  :root[data-theme="magazine"] .site-header { flex-direction: column; gap: var(--space-2); padding-block: var(--space-3); }
+  :root[data-theme="magazine"] .site-logo img { width: 2.5rem; }
+  :root[data-theme="magazine"] .site-nav { margin: 0; }
+  :root[data-theme="magazine"] .site-nav ul { justify-content: center; gap: var(--space-1) var(--space-7); }
+}
+
+/* Sections: centred, airy, separated by hairlines, each opening with an
+   issue-style number ("N.º 01") */
+:root[data-theme="magazine"] main { counter-reset: mg-section; }
+:root[data-theme="magazine"] .band {
+  padding: clamp(var(--space-8), 10vw, 9rem) var(--gutter);
+  text-align: center;
+}
+:root[data-theme="magazine"] .band + .band { border-top: var(--mg-hair); }
+:root[data-theme="magazine"] .band:not(.hero) { counter-increment: mg-section; }
+:root[data-theme="magazine"] .band:not(.hero)::before {
+  content: "N.º " counter(mg-section, decimal-leading-zero);
+  display: block;
+  margin-bottom: var(--space-5);
+  color: var(--mg-grey);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+:root[data-theme="magazine"] .band h2 {
+  margin-bottom: clamp(var(--space-6), 5vw, var(--space-8));
+  color: var(--mg-ink);
+}
+/* A short accent hairline under each heading */
+:root[data-theme="magazine"] .band h2::after {
+  content: "";
+  display: block;
+  width: 3rem;
+  height: 1px;
+  margin: var(--space-5) auto 0;
+  background: var(--mg-accent);
+}
+
+/* The page title is the cover: dark, with the script title in paper */
+:root[data-theme="magazine"] .band.hero {
+  --band-bg: var(--mg-ink);
+  color: var(--mg-paper);
+  justify-items: center;
+  gap: var(--space-6);
+  padding-block: clamp(var(--space-8), 13vw, 12rem);
+}
+:root[data-theme="magazine"] .hero::before {
+  content: "Associação de Pais · Jardim da Mata" / "";
+  color: color-mix(in srgb, var(--mg-paper) 70%, var(--mg-ink));
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+:root[data-theme="magazine"] .hero h1 { color: var(--mg-paper); }
+
+:root[data-theme="magazine"] .lead {
+  margin-inline: auto;
+  max-width: 38rem;
+  font-family: var(--mg-serif);
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.45;
+}
+:root[data-theme="magazine"] .hero .lead {
+  padding-top: var(--space-5);
+  border-top: 1px solid color-mix(in srgb, var(--mg-paper) 30%, transparent);
+}
+
+/* Body text: two justified columns with a hairline between, and a drop cap */
+:root[data-theme="magazine"] .prose {
+  display: block;
+  max-width: 60rem;
+  margin-inline: auto;
+  columns: 2 18rem;
+  column-gap: var(--space-8);
+  column-rule: var(--mg-hair);
+  text-align: justify;
+  hyphens: auto;
+}
+:root[data-theme="magazine"] .prose p + p { margin-top: var(--space-4); }
+/* Short intro text in a band without a heading reads better in one column */
+:root[data-theme="magazine"] .band:not(:has(> h2)) .prose { columns: auto; max-width: 38rem; }
+:root[data-theme="magazine"] .prose > p:first-of-type::first-letter {
+  float: left;
+  padding: 0.06em 0.1em 0 0;
+  color: var(--mg-accent);
+  font-family: var(--mg-serif);
+  font-size: 4.4em;
+  line-height: 0.8;
+}
+:root[data-theme="magazine"] .prose a { text-decoration-thickness: 1px; text-decoration-color: var(--mg-accent); }
+
+/* Numbered list: a three-up grid with italic Bodoni numerals */
+:root[data-theme="magazine"] .steps {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-7) var(--space-7);
+  max-width: 64rem;
+  margin-inline: auto;
+  text-align: left;
+}
+:root[data-theme="magazine"] .steps li {
+  display: block;
+  padding-top: var(--space-5);
+  border-top: var(--mg-hair);
+}
+:root[data-theme="magazine"] .steps li::before {
+  display: block;
+  margin-bottom: var(--space-3);
+  color: var(--mg-accent);
+  font-family: var(--mg-serif);
+  font-size: var(--text-2xl);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* Rows (dates, services, items): centred, hairline-divided, set in Bodoni */
+:root[data-theme="magazine"] .rows {
+  max-width: 44rem;
+  margin-inline: auto;
+  border-bottom: var(--mg-hair);
+}
+:root[data-theme="magazine"] .rows li {
+  padding: var(--space-5) 0;
+  border-top: var(--mg-hair);
+  font-family: var(--mg-serif);
+  font-size: 1.35rem;
+  font-weight: 400;
+}
+:root[data-theme="magazine"] .rows strong { font-size: clamp(2.25rem, 4vw, 3rem); line-height: 1.1; margin-bottom: var(--space-1); }
+:root[data-theme="magazine"] .rows span { color: var(--mg-grey); font-family: var(--font-body); font-size: 0.78rem; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; }
+
+/* Buttons: square, outlined, spaced capitals */
+:root[data-theme="magazine"] .actions { justify-content: center; margin-top: var(--space-7); }
+:root[data-theme="magazine"] .button {
+  padding: 1.1em 2.2em;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  color: var(--mg-ink) !important;
+  transition: background-color 0.3s, color 0.3s;
+}
+:root[data-theme="magazine"] .button::after { content: none; }
+:root[data-theme="magazine"] .button:hover { background: var(--mg-ink); color: var(--mg-paper) !important; }
+:root[data-theme="magazine"] .hero .button { color: var(--mg-paper) !important; }
+:root[data-theme="magazine"] .hero .button:hover { background: var(--mg-paper); color: var(--mg-ink) !important; }
+
+/* Footer: the colophon. Light, centred, hairline above */
+:root[data-theme="magazine"] .site-footer {
+  justify-items: center;
+  border-top: var(--mg-hair);
+  background: var(--mg-paper);
+  color: var(--mg-ink);
+  text-align: center;
+}
+:root[data-theme="magazine"] .site-footer img { width: 3rem; }
+:root[data-theme="magazine"] .site-footer strong { font-family: var(--font-display); font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 400; line-height: 1.15; }
+:root[data-theme="magazine"] .site-footer p { color: var(--mg-grey); }
+:root[data-theme="magazine"] .site-footer ul { justify-content: center; }
+:root[data-theme="magazine"] .site-footer a { text-decoration: none; }
+:root[data-theme="magazine"] .site-footer a:hover { text-decoration: underline; text-decoration-thickness: 1px; }
+
+/* Phones: a tighter menu, and ragged-right text (justified text in a
+   narrow column opens uneven gaps between words) */
+@media (max-width: 47.99rem) {
+  :root[data-theme="magazine"] .site-nav a { letter-spacing: 0.12em; }
+}
+@media (max-width: 40rem) {
+  :root[data-theme="magazine"] .prose { text-align: left; }
+}
+
+/* Motion: slow fades, nothing bouncy */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="magazine"] .hero > * { animation: mg-in 1.4s cubic-bezier(0.2, 0.6, 0.2, 1) both; }
+  :root[data-theme="magazine"] .hero > .lead { animation-delay: 0.25s; }
+  :root[data-theme="magazine"] .hero > .actions { animation-delay: 0.45s; }
+  @supports (animation-timeline: view()) {
+    :root[data-theme="magazine"] .band:not(.hero) > * {
+      animation: mg-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+}
+@keyframes mg-in { from { opacity: 0; translate: 0 1.25rem; } }
+
+
+/* ---------------------------------------------------------------
+ * The switcher itself. Fixed values, not tokens, so a theme
+ * experiment can't make it unreadable.
+ * ------------------------------------------------------------- */
+.theme-switcher {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  border-radius: 999px;
+  background: #222;
+  color: #fff;
+  font: 600 0.875rem/1 system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+}
+.theme-switcher select {
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #222;
+  font: inherit;
+}
+.theme-switcher select:focus-visible { outline: 3px solid #ef601e; outline-offset: 2px; }

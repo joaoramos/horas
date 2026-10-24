@@ -5,26 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Horas · Jardim da Mata</title>
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#fdf2dc">
-  <link rel="icon" href="/favicon-32.png" sizes="32x32">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="/tokens.css">
+  <link rel="icon" href="/jm/design-system/logo/favicon-32.png">
+  <link rel="apple-touch-icon" href="/jm/design-system/logo/apple-touch-icon.png">
+  <!-- Estilos do site do Jardim da Mata, copiados sem alterações (npm run sincronizar-estilos) -->
+  <link rel="stylesheet" href="/jm/design-system/tokens.css">
+  <link rel="stylesheet" href="/jm/novo/site.css">
+  <link rel="stylesheet" href="/jm/novo/themes.css">
+  <script src="/jm/novo/theme-switcher.js"></script>
+  <!-- Componentes próprios desta app -->
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <header class="topo">
-    <a class="marca" href="/">
-      <img src="/jardim-da-mata-mark.png" alt="" width="40" height="40">
-      <span>Horas <small>Jardim da Mata</small></span>
+  <header class="site-header">
+    <a class="site-logo" href="/">
+      <img src="/jm/design-system/logo/jardim-da-mata-mark.png" alt="Horas — página inicial">
     </a>
-    <nav>
-      <a href="/">Equipa</a>
-      <a href="/regras">Regras</a>
+    <nav class="site-nav" aria-label="Principal">
+      <ul>
+        <li><a href="/">Equipa</a></li>
+        <li><a href="/regras">Regras</a></li>
+      </ul>
     </nav>
   </header>
   <main id="app" tabindex="-1">
-    <p class="a-carregar">A carregar…</p>
+    <section class="band hero">
+      <p class="a-carregar">A carregar…</p>
+    </section>
   </main>
+  <footer class="site-footer">
+    <img src="/jm/design-system/logo/jardim-da-mata-mark.png" alt="">
+    <p><strong>Horas</strong>
+      Registo e compensação de horas da equipa do Jardim da Mata</p>
+  </footer>
 </body>
 </html>

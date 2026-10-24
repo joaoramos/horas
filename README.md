@@ -15,6 +15,20 @@ Browser ──▶ Cloudflare Worker (horas.jardimdamata.pt) ──▶ Google App
 - **`src/saldo.js`**: as regras de cálculo (prazo de 5 dias úteis, máximo de 2h por dia, incumprimento, saldo transitado).
 - **`src/dados.js`**: lê e grava na folha, através do Apps Script. As leituras ficam 30 segundos em cache.
 - **`apps-script/Code.gs`**: script ligado à folha que lê os separadores e grava os registos.
+- **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css`, os temas e o seletor de temas), copiados sem alterações.
+  `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que todos os temas se apliquem.
+
+### Estilos e temas
+
+Os estilos vêm do repositório `jardimdamata`. Depois de os alterar lá, atualize a cópia e faça commit:
+
+```sh
+npm run sincronizar-estilos              # assume ../jardimdamata
+npm run sincronizar-estilos -- /outro/caminho/jardimdamata
+```
+
+O seletor de temas (canto inferior direito) guarda a escolha no browser, com a mesma chave do site (`jm-theme`).
+Quando o site escolher um tema definitivo e apagar `themes.css` e `theme-switcher.js`, basta voltar a sincronizar e retirar as duas linhas correspondentes em `public/index.html`.
 
 Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 
