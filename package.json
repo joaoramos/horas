@@ -1,0 +1,19 @@
+{
+  "name": "horas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  },
+  "overrides": {
+    "undici": "7.30.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,125 @@
+/*
+ * Jardim da Mata — design tokens
+ *
+ * Colours sampled from assets/logo*.jpg and the website mockups
+ * (assets/website-inicio.jpg, assets/website-sobre-nos.jpg).
+ * Primitives describe *what* a colour is; semantic tokens describe *where* it is used.
+ * Components should reference semantic tokens only.
+ */
+
+:root {
+  /* ---------------------------------------------------------------
+   * Primitives — brand palette (from the mockups)
+   * ------------------------------------------------------------- */
+  --jm-cream: #fdf2dc;        /* page background */
+  --jm-linen: #f6eee3;        /* image panels, logo background */
+  --jm-lilac: #caabcd;        /* "terra do brincar", APJM leaf */
+  --jm-blush: #eabcbc;        /* "galeria" */
+  --jm-slate: #82a6be;        /* "amigos da mata", APJM wordmark */
+  --jm-sage: #aeb39f;         /* "documentação" */
+  --jm-butter: #fdf8b4;       /* "newsletter" */
+  --jm-mist: #c4d7e5;         /* "perguntas frequentes" */
+  --jm-sky: #d6e7f7;          /* "sobre nós" */
+  --jm-orange: #ef601e;       /* accent: + buttons, dots, headings */
+  --jm-ink: #534d3c;          /* body text */
+  --jm-white: #ffffff;
+
+  /* Logo palette (the three trees) */
+  --jm-logo-blue: #77a6c2;
+  --jm-logo-sky: #b9d7e9;
+  --jm-logo-pink: #f7b8b9;
+  --jm-logo-trunk: #a8b59b;
+
+  /* Deep variants — the pastels darkened until they reach 4.5:1 on cream,
+     so they can be used for text and icons that must stay legible. */
+  --jm-orange-deep: #bc4b17;
+  --jm-slate-deep: #597283;
+  --jm-sage-deep: #6d7064;
+  --jm-lilac-deep: #7b687d;
+
+  /* ---------------------------------------------------------------
+   * Semantic — colour
+   * ------------------------------------------------------------- */
+  --color-bg: var(--jm-cream);
+  --color-surface: var(--jm-linen);
+  --color-text: var(--jm-ink);
+  --color-text-muted: var(--jm-slate-deep);
+  --color-heading: var(--jm-orange-deep);
+  --color-accent: var(--jm-orange);
+  --color-on-accent: var(--jm-white);
+  --color-link: var(--jm-orange-deep);
+  --color-focus: var(--jm-orange);
+
+  /* Section cards (homepage grid). Each section owns one pastel. */
+  --color-section-sobre: var(--jm-sky);
+  --color-section-terra: var(--jm-lilac);
+  --color-section-galeria: var(--jm-blush);
+  --color-section-amigos: var(--jm-slate);
+  --color-section-documentacao: var(--jm-sage);
+  --color-section-newsletter: var(--jm-butter);
+  --color-section-faq: var(--jm-mist);
+  /* Site pages. Lilac only reaches 4.1:1 with ink, so keep text on it large. */
+  --color-section-projeto: var(--jm-lilac);
+  --color-section-apjm: var(--jm-sky);
+  --color-section-calendario: var(--jm-blush);
+  /* Text on any section card. The mockups use light tints on the pastels,
+     which fall to 1.1–2.6:1 contrast; ink reads 3.3:1+ on all of them, and
+     card labels are large text, so ink passes WCAG AA for large text. */
+  --color-on-section: var(--jm-ink);
+
+  /* Inverted surfaces (footer). Cream on ink is 7.6:1. */
+  --color-inverse-bg: var(--jm-ink);
+  --color-inverse-text: var(--jm-cream);
+
+  /* ---------------------------------------------------------------
+   * Typography
+   * TBC: the mockups use a narrow hand-lettered face for headings and
+   * body; confirm the exact typeface with the designer and swap it in here.
+   * ------------------------------------------------------------- */
+  --font-display: system-ui, sans-serif;
+  --font-body: system-ui, sans-serif;
+  --font-label: system-ui, sans-serif; /* spaced caps: "CONTACTOS", "ASSOCIAÇÃO DE PAIS" */
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.5rem;
+  --text-xl: 2rem;
+  --text-2xl: 3rem;
+  --text-3xl: clamp(2.25rem, 6vw, 4.5rem);   /* section headings */
+  --text-display: clamp(3rem, 11vw, 9rem);   /* page titles */
+
+  --weight-regular: 400;
+  --weight-bold: 700;
+  --weight-black: 900;
+
+  --leading-tight: 1.15;
+  --leading-body: 1.6;
+  --tracking-label: 0.25em;
+  --leading-display: 0.95;
+  --tracking-display: -0.035em;
+
+  /* ---------------------------------------------------------------
+   * Space, shape and elevation (from the mockup grid proportions)
+   * ------------------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  --gutter: clamp(1rem, 5vw, 4rem);          /* edge-to-edge page padding */
+  --measure: 42rem;                          /* max line length for body text */
+
+  --grid-gap: 1.25rem;
+  --radius-card: 1.25rem;
+  --radius-panel: 0.75rem;
+  --radius-pill: 999px;
+  --size-icon-button: 1.75rem;
+
+  --shadow-card: none; /* the mockups are flat; keep it that way */
+}
