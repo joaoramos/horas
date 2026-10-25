@@ -53,18 +53,11 @@ const pinGuardado = {
 
 // ---------------------------------------------------------------- navegação
 
+// Cada link carrega a página de raiz (sem history.pushState). Assim o HTML de cada página traz o
+// manifesto certo, e o Safari adiciona ao ecrã principal a página onde a pessoa está.
 function navegar(caminho) {
-  history.pushState(null, '', caminho);
-  mostrar();
+  location.assign(caminho);
 }
-
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('a[href^="/"]');
-  if (!link || e.metaKey || e.ctrlKey || e.shiftKey || link.target) return;
-  e.preventDefault();
-  navegar(link.getAttribute('href'));
-});
-window.addEventListener('popstate', mostrar);
 
 function marcarNavegacao(caminho) {
   document.querySelectorAll('.site-nav a').forEach((a) => {
@@ -83,7 +76,6 @@ function mostrar({ manterPosicao = false } = {}) {
   visita++;
   const caminho = location.pathname.replace(/\/+$/, '') || '/';
   marcarNavegacao(caminho);
-  atualizarManifesto();
   if (!manterPosicao) window.scrollTo(0, 0);
   if (caminho === '/') return paginaEquipa();
   if (caminho === '/regras') return paginaRegras();
@@ -91,12 +83,6 @@ function mostrar({ manterPosicao = false } = {}) {
 }
 
 // ---------------------------------------------------------------- app no ecrã principal
-
-/** O manifesto acompanha a página atual: "Adicionar ao ecrã principal" abre sempre aqui. */
-function atualizarManifesto() {
-  const link = document.getElementById('manifesto');
-  if (link) link.href = `/manifest.webmanifest?pagina=${encodeURIComponent(location.pathname)}`;
-}
 
 /** A barra de estado do telemóvel acompanha a cor de fundo do tema escolhido. */
 function atualizarCorDaBarra() {

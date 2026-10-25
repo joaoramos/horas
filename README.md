@@ -26,7 +26,9 @@ Cada pessoa abre o seu endereço (ex.: https://horas.jardimdamata.pt/mariana), i
 - **Android (Chrome):** menu ⋮ › **Adicionar ao ecrã principal** (ou **Instalar app**).
 
 A app chama-se "Horas", tem o ícone das árvores e abre sempre na página onde foi adicionada.
-O manifesto é gerado pelo Worker (`/manifest.webmanifest?pagina=/mariana`) e acompanha a página atual.
+O manifesto é gerado pelo Worker (`/manifest.webmanifest?pagina=/mariana`), e o Worker escreve o link certo no HTML
+de cada página. O Safari ignora alterações ao manifesto feitas por JavaScript, por isso os links entre páginas
+carregam a página de raiz.
 
 - O PIN fica guardado no telemóvel até a pessoa carregar em **Sair**.
 - Ao voltar à app depois de mais de um minuto, os dados são atualizados.

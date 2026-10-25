@@ -130,11 +130,23 @@ async function manifesto(url, env, ctx) {
   });
 }
 
+/** Páginas da app: o mesmo index.html, com o link do manifesto a apontar para a página pedida. */
+async function pagina(request, env, url) {
+  const resposta = await env.ASSETS.fetch(request);
+  if (!resposta.headers.get('content-type')?.includes('text/html')) return resposta;
+  const caminho = url.pathname.replace(/\/+$/, '').toLowerCase() || '/';
+  return new HTMLRewriter()
+    .on('link[rel="manifest"]', {
+      element: (link) => link.setAttribute('href', `/manifest.webmanifest?pagina=${encodeURIComponent(caminho)}`),
+    })
+    .transform(resposta);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/manifest.webmanifest') return manifesto(url, env, ctx);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (!url.pathname.startsWith('/api/')) return pagina(request, env, url);
     try {
       return await api(request, env, ctx, url);
     } catch (erro) {

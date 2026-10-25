@@ -7,7 +7,9 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/manifest.webmanifest"]
+    // O Worker recebe as páginas (para escrever o manifesto certo) e a API.
+    // Os ficheiros estáticos são servidos diretamente, sem contar pedidos ao Worker.
+    "run_worker_first": ["/*", "!/jm/*", "!/icones/*", "!/app.js", "!/styles.css", "!/sw.js"]
   },
   "routes": [{ "pattern": "horas.jardimdamata.pt", "custom_domain": true }],
   "observability": { "enabled": true }

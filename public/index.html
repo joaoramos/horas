@@ -6,10 +6,10 @@
   <title>Horas · Jardim da Mata</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="/jm/design-system/logo/favicon-32.png">
-  <!-- Ecrã principal: cada pessoa guarda a sua página (ex.: /mariana). O manifesto é gerado
-       pelo Worker para a página atual, para que a app abra sempre onde foi adicionada. -->
-  <link rel="manifest" id="manifesto" href="/manifest.webmanifest">
-  <script>document.getElementById('manifesto').href = '/manifest.webmanifest?pagina=' + encodeURIComponent(location.pathname);</script>
+  <!-- Ecrã principal: cada pessoa guarda a sua página (ex.: /mariana). O Worker reescreve este href
+       para a página pedida (?pagina=/mariana), para que a app instalada abra sempre onde foi adicionada.
+       Tem de vir certo no HTML: o Safari ignora alterações feitas depois por JavaScript. -->
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icones/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="Horas">
   <meta name="mobile-web-app-capable" content="yes">
