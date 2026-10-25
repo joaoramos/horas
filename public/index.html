@@ -6,7 +6,16 @@
   <title>Horas · Jardim da Mata</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="/jm/design-system/logo/favicon-32.png">
-  <link rel="apple-touch-icon" href="/jm/design-system/logo/apple-touch-icon.png">
+  <!-- Ecrã principal: cada pessoa guarda a sua página (ex.: /mariana). O manifesto é gerado
+       pelo Worker para a página atual, para que a app abra sempre onde foi adicionada. -->
+  <link rel="manifest" id="manifesto" href="/manifest.webmanifest">
+  <script>document.getElementById('manifesto').href = '/manifest.webmanifest?pagina=' + encodeURIComponent(location.pathname);</script>
+  <link rel="apple-touch-icon" href="/icones/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Horas">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#fdf2dc">
   <!-- Estilos do site do Jardim da Mata, copiados sem alterações (npm run sincronizar-estilos) -->
   <link rel="stylesheet" href="/jm/design-system/tokens.css">
   <link rel="stylesheet" href="/jm/novo/site.css">

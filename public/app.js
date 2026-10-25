@@ -30,18 +30,25 @@ function explicar(minutos) {
 // ---------------------------------------------------------------- API
 
 async function api(caminho, corpo) {
-  const resposta = await fetch(`/api/${caminho}`, corpo
-    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) }
-    : undefined);
+  let resposta;
+  try {
+    resposta = await fetch(`/api/${caminho}`, corpo
+      ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) }
+      : undefined);
+  } catch {
+    throw Object.assign(new Error('Sem ligação à internet. Tente de novo quando tiver rede.'), { estado: 0 });
+  }
   const dados = await resposta.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
   if (!resposta.ok) throw Object.assign(new Error(dados.erro || 'Erro inesperado.'), { estado: resposta.status });
   return dados;
 }
 
+// O PIN fica guardado neste dispositivo até a pessoa carregar em "Sair", para que a app
+// no ecrã principal abra logo na sua página. (sessionStorage perde-se sempre que a app fecha.)
 const pinGuardado = {
-  ler: (id) => { try { return sessionStorage.getItem(`pin:${id}`); } catch { return null; } },
-  gravar: (id, pin) => { try { sessionStorage.setItem(`pin:${id}`, pin); } catch {} },
-  apagar: (id) => { try { sessionStorage.removeItem(`pin:${id}`); } catch {} },
+  ler: (id) => { try { return localStorage.getItem(`pin:${id}`); } catch { return null; } },
+  gravar: (id, pin) => { try { localStorage.setItem(`pin:${id}`, pin); } catch {} },
+  apagar: (id) => { try { localStorage.removeItem(`pin:${id}`); } catch {} },
 };
 
 // ---------------------------------------------------------------- navegação
@@ -72,14 +79,51 @@ function marcarNavegacao(caminho) {
 let visita = 0;
 const mudouDePagina = (minha) => minha !== visita;
 
-function mostrar() {
+function mostrar({ manterPosicao = false } = {}) {
   visita++;
   const caminho = location.pathname.replace(/\/+$/, '') || '/';
   marcarNavegacao(caminho);
-  window.scrollTo(0, 0);
+  atualizarManifesto();
+  if (!manterPosicao) window.scrollTo(0, 0);
   if (caminho === '/') return paginaEquipa();
   if (caminho === '/regras') return paginaRegras();
   return paginaFuncionario(decodeURIComponent(caminho.slice(1)).toLowerCase());
+}
+
+// ---------------------------------------------------------------- app no ecrã principal
+
+/** O manifesto acompanha a página atual: "Adicionar ao ecrã principal" abre sempre aqui. */
+function atualizarManifesto() {
+  const link = document.getElementById('manifesto');
+  if (link) link.href = `/manifest.webmanifest?pagina=${encodeURIComponent(location.pathname)}`;
+}
+
+/** A barra de estado do telemóvel acompanha a cor de fundo do tema escolhido. */
+function atualizarCorDaBarra() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(document.body).backgroundColor;
+}
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'theme-switcher') atualizarCorDaBarra();
+});
+
+// Na app instalada não há botão de recarregar: ao voltar a ela depois de algum tempo,
+// os dados são atualizados (o dia pode até ter mudado).
+let escondidaDesde = 0;
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) {
+    escondidaDesde = Date.now();
+    return;
+  }
+  const ocupada = app.querySelector('select[data-dia]:disabled, form.pin');
+  if (!escondidaDesde || Date.now() - escondidaDesde < 60_000 || ocupada) return;
+  const y = window.scrollY;
+  await mostrar({ manterPosicao: true });
+  window.scrollTo(0, y);
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 const A_CARREGAR = '<section class="band hero"><p class="a-carregar">A carregar…</p></section>';
@@ -89,8 +133,12 @@ function erro(mensagem) {
     <section class="band hero">
       <h1>Ups</h1>
       <p class="lead" role="alert">${esc(mensagem)}</p>
-      <div class="actions"><a class="button" href="/">Voltar à equipa</a></div>
+      <div class="actions">
+        <button type="button" class="button sem-seta" data-tentar>Tentar de novo</button>
+        <a class="button" href="/">Voltar à equipa</a>
+      </div>
     </section>`;
+  app.querySelector('[data-tentar]').addEventListener('click', () => mostrar());
 }
 
 // ---------------------------------------------------------------- blocos comuns
@@ -414,4 +462,5 @@ function mostrarFuncionario(d, pin) {
   });
 }
 
+atualizarCorDaBarra();
 mostrar();

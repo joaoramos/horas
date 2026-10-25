@@ -18,6 +18,21 @@ Browser ──▶ Cloudflare Worker (horas.jardimdamata.pt) ──▶ Google App
 - **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css`, os temas e o seletor de temas), copiados sem alterações.
   `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que todos os temas se apliquem.
 
+### App no ecrã principal
+
+Cada pessoa abre o seu endereço (ex.: https://horas.jardimdamata.pt/mariana), introduz o PIN e adiciona a página ao ecrã principal:
+
+- **iPhone (Safari):** botão Partilhar › **Adicionar ao ecrã principal**.
+- **Android (Chrome):** menu ⋮ › **Adicionar ao ecrã principal** (ou **Instalar app**).
+
+A app chama-se "Horas", tem o ícone das árvores e abre sempre na página onde foi adicionada.
+O manifesto é gerado pelo Worker (`/manifest.webmanifest?pagina=/mariana`) e acompanha a página atual.
+
+- O PIN fica guardado no telemóvel até a pessoa carregar em **Sair**.
+- Ao voltar à app depois de mais de um minuto, os dados são atualizados.
+- Sem rede, a app abre na mesma e mostra uma mensagem com o botão **Tentar de novo** (`public/sw.js`). Os saldos nunca ficam guardados: vêm sempre da folha.
+- Os ícones estão em `public/icones/`, recortados do logótipo em alta resolução do repositório `jardimdamata`.
+
 ### Estilos e temas
 
 Os estilos vêm do repositório `jardimdamata`. Depois de os alterar lá, atualize a cópia e faça commit:

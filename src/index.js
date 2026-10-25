@@ -92,9 +92,48 @@ async function api(request, env, ctx, url) {
   throw new ErroPublico('Não encontrado.', 404);
 }
 
+/** Manifesto da app instalada no ecrã principal, com início na página de onde foi adicionada. */
+async function manifesto(url, env, ctx) {
+  const pedida = url.searchParams.get('pagina') ?? '/';
+  const pagina = /^\/[a-z0-9-]*$/.test(pedida) ? pedida : '/';
+  const id = pagina.slice(1);
+
+  let nome = '';
+  if (id && id !== 'regras') {
+    try {
+      nome = (await carregarDados(env, ctx)).funcionarios.find((f) => f.id === id)?.nome ?? '';
+    } catch {
+      // Sem a folha, o manifesto continua válido, apenas sem o nome.
+    }
+  }
+
+  const corpo = {
+    id: pagina,
+    start_url: pagina,
+    scope: '/',
+    name: nome ? `Horas · ${nome}` : 'Horas · Jardim da Mata',
+    short_name: 'Horas',
+    description: 'Registo e compensação de horas da equipa do Jardim da Mata.',
+    lang: 'pt-PT',
+    display: 'standalone',
+    background_color: '#fdf2dc',
+    theme_color: '#fdf2dc',
+    icons: [
+      { src: '/icones/icone-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icones/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icones/icone-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/icones/icone-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  };
+  return new Response(JSON.stringify(corpo), {
+    headers: { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'public, max-age=300' },
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === '/manifest.webmanifest') return manifesto(url, env, ctx);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     try {
       return await api(request, env, ctx, url);
