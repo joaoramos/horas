@@ -129,12 +129,18 @@ function erro(mensagem) {
 
 // ---------------------------------------------------------------- blocos comuns
 
+/** O saldo total só conta dias já terminados; as horas de hoje e as planeadas aparecem à parte. */
+function comPlaneadas(r, etiqueta = 'com as horas planeadas') {
+  if (r.saldoPrevisto === r.saldoTotal) return '';
+  return `<span class="saldo-previsto"><b>${horas(r.saldoPrevisto)}</b> ${etiqueta}</span>`;
+}
+
 function cartoesSaldo(r) {
   return `
     <dl class="saldos">
       <div class="saldo saldo-total cartao">
         <dt>Saldo total</dt>
-        <dd><strong>${horas(r.saldoTotal)}</strong><span>${explicar(r.saldoTotal)}</span></dd>
+        <dd><strong>${horas(r.saldoTotal)}</strong><span>${explicar(r.saldoTotal)}</span>${comPlaneadas(r)}</dd>
       </div>
       <div class="saldo cartao">
         <dt>A compensar até ${sexta(r.semanaCorrente.ate)}</dt>
@@ -179,7 +185,7 @@ async function paginaEquipa() {
     <li>
       <a class="pessoa cartao" href="/${esc(id)}">
         <span class="pessoa-nome">${esc(nome)}${r.emIncumprimento ? ' <span class="etiqueta">Em incumprimento</span>' : ''}</span>
-        <span class="pessoa-valor"><small>Saldo total</small>${horas(r.saldoTotal)}</span>
+        <span class="pessoa-valor"><small>Saldo total</small>${horas(r.saldoTotal)}${comPlaneadas(r, 'planeado')}</span>
         <span class="pessoa-valor"><small>Até ${sexta(r.semanaCorrente.ate)}</small>${horas(r.semanaCorrente.minutos)}</span>
         <span class="pessoa-valor"><small>Até ${sexta(r.semanaSeguinte.ate)}</small>${horas(r.semanaSeguinte.minutos)}</span>
       </a>
@@ -253,7 +259,8 @@ function paginaRegras() {
       <h2 id="regra-5">O que significam os valores</h2>
       <div class="prose">
         <ul class="lista">
-        <li><strong>Saldo total:</strong> todas as horas a mais (+) ou em falta (−), incluindo o saldo transitado.</li>
+        <li><strong>Saldo total:</strong> todas as horas a mais (+) ou em falta (−) até ontem, incluindo o saldo transitado.</li>
+        <li><strong>Com as horas planeadas:</strong> o saldo total depois de contar as horas de hoje e dos próximos dias. Cada dia passa para o saldo total quando termina.</li>
         <li><strong>A compensar até sexta:</strong> horas cujo prazo termina até ao fim da semana corrente ou da seguinte, já contando com as horas que planeou.</li>
         </ul>
       </div>
@@ -389,7 +396,6 @@ function mostrarFuncionario(d, pin) {
   const r = d.resumo;
   const notas = [];
   if (r.saldoTransitado) notas.push(`Inclui ${horas(r.saldoTransitado)} de saldo transitado, sem prazo de compensação.`);
-  if (r.saldoPrevisto !== r.saldoTotal) notas.push(`Com as horas de hoje e as planeadas, o saldo fica em ${horas(r.saldoPrevisto)}.`);
 
   app.innerHTML = `
     <section class="band hero">
