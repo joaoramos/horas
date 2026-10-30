@@ -91,10 +91,12 @@ async function api(request, env, ctx, url) {
     if (acao === 'registos') {
       const atuais = await carregarDados(env, ctx);
       const funcionario = autenticar(atuais, id, corpo.pin);
-      const minutosAtuais = atuais.registos
-        .filter((r) => r.funcionario === funcionario.id && r.data === corpo.data)
-        .reduce((t, r) => t + r.minutos, 0);
-      const registo = validarRegisto(corpo, hoje, atuais.feriados, { minutosAtuais, pausa: funcionario.horario.pausa });
+      const doDia = atuais.registos.filter((r) => r.funcionario === funcionario.id && r.data === corpo.data);
+      const registo = validarRegisto(corpo, hoje, atuais.feriados, {
+        minutosAtuais: doDia.reduce((t, r) => t + r.minutos, 0),
+        ferias: doDia.some((r) => r.ferias),
+        pausa: funcionario.horario.pausa,
+      });
       const dados = await gravarRegisto(env, ctx, { funcionario: funcionario.id, data: corpo.data, ...registo });
       return json(detalhe(funcionario, dados, hoje));
     }

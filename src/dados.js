@@ -90,10 +90,13 @@ export function interpretar(tabelas) {
       const saida = lerHora(r.saida);
       const comHorario = entrada !== null && saida !== null && saida > entrada;
       const horas = String(r.horas ?? '').trim() === '' ? null : lerHoras(r.horas);
+      // Coluna "tipo": "férias" marca o dia como férias dessa pessoa (não conta para o saldo)
+      const ferias = normalizarCabecalho(r.tipo ?? '') === 'ferias';
       let minutos;
       // Num dia útil com entrada e saída, o desvio vem do horário; senão, da coluna "horas"
       // (ex.: dias completos de ausência registados pela APJM, ou registos antigos sem horário).
-      if (comHorario && data && ehDiaUtil(data, feriados)) minutos = desvioDoHorario(entrada, saida, pausaDe.get(funcionario) ?? 60);
+      if (ferias) minutos = 0;
+      else if (comHorario && data && ehDiaUtil(data, feriados)) minutos = desvioDoHorario(entrada, saida, pausaDe.get(funcionario) ?? 60);
       else if (horas !== null) minutos = horas;
       else if (comHorario) minutos = saida - entrada; // fim de semana ou feriado: horas trabalhadas
       else minutos = null;
@@ -101,8 +104,9 @@ export function interpretar(tabelas) {
         data,
         funcionario,
         minutos,
-        entrada: comHorario ? entrada : null,
-        saida: comHorario ? saida : null,
+        entrada: comHorario && !ferias ? entrada : null,
+        saida: comHorario && !ferias ? saida : null,
+        ferias,
         nota: String(r.nota ?? '').trim(),
       };
     })
@@ -210,10 +214,13 @@ const demo = (() => {
       linha('2026-12-01', 'vera', -8, 'Dia completo aprovado pela APJM'),
       linha('2026-11-02', 'mariana', -2, '', '09:00', '16:00'),
       linha('2026-11-03', 'mariana', 2, '', '08:00', '19:00'),
+      // Férias da Mariana (coluna "tipo")
+      { ...linha('2026-11-11', 'mariana', '', 'Férias de outono'), tipo: 'Férias' },
+      { ...linha('2026-11-12', 'mariana', '', 'Férias de outono'), tipo: 'Férias' },
     ];
     return registos;
   };
-  const colunas = ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota'];
+  const colunas = ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'tipo'];
   return {
     tabelas: () => ({
       funcionarios: [

@@ -54,8 +54,8 @@ Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 | Separador | Colunas | Para quê |
 | --- | --- | --- |
 | `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `entrada`, `saida`, `pausa` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `entrada`/`saida` são o horário habitual (ex.: `09:30` e `18:30`) e `pausa` as horas sem trabalho (ex.: `1`). |
-| `Registos` | `data`, `funcionario`, `entrada`, `saida`, `horas`, `nota`, `atualizado_em` | Uma linha por pessoa e por dia útil, com a hora de entrada e de saída. `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir do horário. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
-| `Feriados + IL` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
+| `Registos` | `data`, `funcionario`, `entrada`, `saida`, `horas`, `nota`, `atualizado_em`, `tipo` | Uma linha por pessoa e por dia útil, com a hora de entrada e de saída. `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir do horário. `tipo` fica vazio nos dias normais; `férias` marca o dia como férias dessa pessoa. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
+| `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
 
 ### Manutenção da folha
 
@@ -70,8 +70,8 @@ Estas são as tarefas de quem a mantém (APJM).
 
 #### Todos os anos
 
-- **Antes de 1 de janeiro**, acrescente ao separador `Feriados + IL` os feriados do ano seguinte: os nacionais (incluindo os móveis, como a Sexta-feira Santa e o Corpo de Deus, que mudam de data todos os anos) e o feriado municipal. Uma linha por feriado, com a `data` e a `descricao`.
-- Se a APJM decidir que outros dias de encerramento não contam como dia de trabalho (ex.: pontes), acrescente-os também em `Feriados + IL`.
+- **Antes de 1 de janeiro**, acrescente ao separador `Feriados` os feriados do ano seguinte: os nacionais (incluindo os móveis, como a Sexta-feira Santa e o Corpo de Deus, que mudam de data todos os anos) e o feriado municipal. Uma linha por feriado, com a `data` e a `descricao`.
+- Se a APJM decidir que outros dias de encerramento não contam como dia de trabalho (ex.: pontes), acrescente-os também em `Feriados`.
 - Se acrescentar um feriado depois de esse dia já ter passado, apague as linhas desse dia em `Registos` (foram criadas pelo preenchimento noturno).
 
 #### Funcionários (separador `Funcionarios`)
@@ -90,6 +90,11 @@ Estas são as tarefas de quem a mantém (APJM).
 
 Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas semanas seguintes, e só até 2 horas a mais ou a menos por dia. Tudo o resto faz-se aqui. Registar na folha é a aprovação da APJM, por isso escreva sempre uma `nota` a explicar.
 
+- **Férias:** para cada dia útil de férias, escreva `férias` na coluna `tipo` da linha dessa pessoa nesse dia. Se ainda não houver linha (ex.: férias no futuro), acrescente uma com `data`, `funcionario`, `tipo` = `férias` e, se quiser, uma `nota` (ex.: "Férias de verão"). Uma linha por dia; os fins de semana e feriados não precisam de linha.
+  - Um dia de férias não conta para o saldo: a `entrada`, a `saida` e as `horas` dessa linha são ignoradas, e também outras linhas desse dia.
+  - Na app, o dia aparece como "Férias", inativo, e a pessoa não o pode alterar.
+  - Para cancelar férias, apague `férias` da coluna `tipo` (ou apague a linha, se for no futuro). O dia volta a ser um dia normal.
+  - Não use `-8` para férias: isso desconta 8 horas no saldo.
 - **Ausência de dia completo** (art. 5.º, sempre com aprovação prévia): na linha dessa pessoa nesse dia, apague a `entrada` e a `saida` e escreva `-8` em `horas`. Se ainda não houver linha, acrescente uma com `data`, `funcionario`, `horas` = `-8` e a `nota`.
 - **Ausência de parte do dia com mais de 2 horas:** igual, com as horas em falta (ex.: `-4`) e sem `entrada` nem `saida`.
 - **Trabalho ao fim de semana ou num feriado:** acrescente uma linha com as horas trabalhadas em `horas` (ex.: `8`). A `entrada` e a `saida` são opcionais e só servem de referência. O trabalho ao fim de semana conta para o saldo, mas não aparece no histórico da app; o trabalho num feriado aparece.
@@ -99,7 +104,7 @@ Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas 
 
 #### Cuidados
 
-- Não mude os nomes dos separadores (`Funcionarios`, `Registos`, `Feriados + IL`) nem os cabeçalhos das colunas, e não apague colunas. Para renomear um separador, é preciso mudar também o nome em `FOLHAS`, no início do `Code.gs`, e publicar uma nova versão do Apps Script. Pode acrescentar colunas novas e ordenar as linhas.
+- Não mude os nomes dos separadores (`Funcionarios`, `Registos`, `Feriados`) nem os cabeçalhos das colunas, e não apague colunas. Para renomear um separador, é preciso mudar também o nome em `FOLHAS`, no início do `Code.gs`, e publicar uma nova versão do Apps Script. Pode acrescentar colunas novas e ordenar as linhas.
 - Não apague linhas de `Registos`, exceto para corrigir um engano. O histórico da app e os fechos de mês dependem delas.
 - As datas podem estar em `2026-10-24` ou `24/10/2026`. As horas do dia em `09:30`. As horas em `horas` aceitam `1,5`, `-1.25`, `1:30` ou `-2h`.
 - A folha tem os PIN de todas as pessoas: partilhe-a só com quem a mantém.

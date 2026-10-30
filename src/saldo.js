@@ -53,14 +53,19 @@ export function desvioDoHorario(entrada, saida, pausa) {
 function agruparPorDia(registos) {
   const dias = new Map();
   for (const r of registos) {
-    const dia = dias.get(r.data) ?? { data: r.data, minutos: 0, entrada: null, saida: null, notas: [] };
+    const dia = dias.get(r.data) ?? { data: r.data, minutos: 0, entrada: null, saida: null, ferias: false, notas: [] };
     dia.minutos += r.minutos;
+    if (r.ferias) dia.ferias = true;
     if (dia.entrada === null && r.entrada != null) {
       dia.entrada = r.entrada;
       dia.saida = r.saida;
     }
     if (r.nota) dia.notas.push(r.nota);
     dias.set(r.data, dia);
+  }
+  // Um dia de férias não conta para o saldo, mesmo que haja outras linhas nesse dia
+  for (const dia of dias.values()) {
+    if (dia.ferias) Object.assign(dia, { minutos: 0, entrada: null, saida: null });
   }
   return [...dias.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
@@ -174,12 +179,13 @@ export function registadoPelaApjm(data, minutos, feriados) {
 }
 
 /** Valida um pedido de registo (data, entrada e saída) e devolve o registo normalizado. */
-export function validarRegisto({ data, entrada, saida }, hoje, feriados, { minutosAtuais = 0, pausa = 60 } = {}) {
+export function validarRegisto({ data, entrada, saida }, hoje, feriados, { minutosAtuais = 0, pausa = 60, ferias = false } = {}) {
   if (!ehDataValida(data)) throw new ErroPublico('Data inválida.');
   if (!ehDiaUtil(data, feriados)) {
     throw new ErroPublico('Fins de semana e feriados só podem ser registados pela APJM.');
   }
   if (!ehEditavel(data, hoje, feriados)) throw new ErroPublico('Este dia já não pode ser alterado.');
+  if (ferias) throw new ErroPublico('Este dia está marcado como férias e só pode ser alterado na folha.');
   if (registadoPelaApjm(data, minutosAtuais, feriados)) {
     throw new ErroPublico('Este dia foi registado pela APJM e só pode ser alterado na folha.');
   }
@@ -213,6 +219,7 @@ export function semanasEditaveis(saldo, feriados, horario) {
       const data = somarDias(segunda, i);
       const registo = porDia.get(data);
       const minutos = registo?.minutos ?? 0;
+      const ferias = Boolean(registo?.ferias);
       const apjm = minutos !== 0 && registadoPelaApjm(data, minutos, feriados);
       dias.push({
         data,
@@ -223,8 +230,9 @@ export function semanasEditaveis(saldo, feriados, horario) {
         registado: Boolean(registo),
         feriado: feriados.has(data),
         nomeFeriado: nomeDoFeriado(feriados, data),
+        ferias,
         apjm,
-        editavel: ehEditavel(data, hoje, feriados) && !apjm,
+        editavel: ehEditavel(data, hoje, feriados) && !apjm && !ferias,
       });
     }
     semanas.push({ segunda, atual: segunda === segundaDeReferencia(hoje), dias });
@@ -244,11 +252,12 @@ export function historico(saldo, feriados) {
       data: d.data,
       minutos: d.minutos,
       // Num dia útil o desvio é face às 8h; num feriado, são as horas trabalhadas
-      trabalhados: feriado ? Math.max(0, d.minutos) : REGRAS.minutosPorDia + d.minutos,
+      trabalhados: d.ferias ? 0 : feriado ? Math.max(0, d.minutos) : REGRAS.minutosPorDia + d.minutos,
       entrada: d.entrada === null ? null : formatarHora(d.entrada),
       saida: d.saida === null ? null : formatarHora(d.saida),
       estado: d.data < saldo.hoje ? 'confirmado' : d.data === saldo.hoje ? 'hoje' : 'planeado',
       apjm: registadoPelaApjm(d.data, d.minutos, feriados),
+      ferias: Boolean(d.ferias),
       feriado,
       nomeFeriado: nomeDoFeriado(feriados, d.data),
       notas: d.notas,

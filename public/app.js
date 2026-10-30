@@ -378,7 +378,10 @@ function semana(s, d) {
     const quando = dia.data < d.hoje ? 'passado' : dia.data === d.hoje ? 'hoje' : 'futuro';
     const longo = diaLongo(dia.data);
     let valor;
-    if (dia.feriado) {
+    if (dia.ferias) {
+      // Férias marcadas pela APJM na folha: dia sem trabalho, que não se pode alterar
+      valor = '<span class="dia-feriado">Férias</span>';
+    } else if (dia.feriado) {
       // Feriado: dia sem trabalho, que não se pode alterar (só a APJM pode registar trabalho na folha)
       valor = `<span class="dia-feriado">Feriado${dia.nomeFeriado ? `<small>${esc(dia.nomeFeriado)}</small>` : ''}${
         dia.minutos ? `<small>${horas(dia.minutos)} registadas pela APJM</small>` : ''}</span>`;
@@ -394,7 +397,7 @@ function semana(s, d) {
         </span>`;
     } else valor = `<span class="dia-fixo">${dia.entrada}–${dia.saida} · ${horas(dia.minutos)}</span>`;
     return `
-      <li class="dia dia-${quando}${dia.feriado ? ' dia-inativo' : ''}"${dia.feriado ? ' aria-disabled="true"' : ''}>
+      <li class="dia dia-${quando}${dia.feriado || dia.ferias ? ' dia-inativo' : ''}"${dia.feriado || dia.ferias ? ' aria-disabled="true"' : ''}>
         <span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>
         ${valor}
         <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
@@ -414,13 +417,14 @@ function tabelaHistorico(d) {
   const estados = { confirmado: 'Confirmado', hoje: 'Hoje', planeado: 'Planeado' };
   const linhas = d.historico.map((h) => {
     const notas = h.notas.length ? `<small>${esc(h.notas.join(' · '))}</small>` : '';
-    if (h.feriado && !h.minutos) {
+    if (h.ferias || (h.feriado && !h.minutos)) {
+      const motivo = h.ferias ? 'Férias' : `Feriado${h.nomeFeriado ? `<small>${esc(h.nomeFeriado)}</small>` : ''}`;
       return `
       <tr class="linha-inativa">
         <td>${diaCurto(h.data)}${notas}</td>
         <td class="num">—</td>
         <td class="num">—</td>
-        <td>Feriado${h.nomeFeriado ? `<small>${esc(h.nomeFeriado)}</small>` : ''}</td>
+        <td>${motivo}</td>
       </tr>`;
     }
     return `

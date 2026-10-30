@@ -195,7 +195,7 @@ test('interpretar a folha aceita cabeçalhos escritos de outra forma', () => {
     feriados: [['Data', 'Descrição'], ['08/12/2026', 'Imaculada Conceição']],
   });
   assert.deepEqual(dados.funcionarios, [{ id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, ativo: true, horario: { entrada: 540, saida: 1080, pausa: 60 } }]);
-  assert.deepEqual(dados.registos, [{ data: '2026-10-21', funcionario: 'mariana', minutos: 90, entrada: null, saida: null, nota: '' }]);
+  assert.deepEqual(dados.registos, [{ data: '2026-10-21', funcionario: 'mariana', minutos: 90, entrada: null, saida: null, ferias: false, nota: '' }]);
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
 });
 
@@ -227,4 +227,37 @@ test('preenchimento noturno: acrescenta os dias úteis sem registo, uma só vez'
   const { carregarDadosAtuais } = await import('../src/dados.js');
   const vera = (await carregarDadosAtuais(env)).registos.find((r) => r.funcionario === 'vera' && r.data === '2026-11-09');
   assert.deepEqual([vera.entrada, vera.saida, vera.minutos], [9 * H + 30, 18 * H + 30, 0]);
+});
+
+test('férias: o dia não conta para o saldo, não se altera na app e aparece inativo', () => {
+  const dados = interpretar({
+    funcionarios: [['id', 'nome', 'pin', 'entrada', 'saida', 'pausa'], ['vera', 'Vera', '1', '9:30', '18:30', 1]],
+    registos: [
+      ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'tipo'],
+      ['2026-11-09', 'vera', '09:30', '19:30', '', '', ''],           // +1h
+      ['2026-11-10', 'vera', '09:30', '20:30', 2, '', 'Férias'],     // férias: horário e horas ignorados
+      ['2026-11-11', 'vera', '', '', '', 'Férias de verão', 'ferias'],
+      ['2026-11-11', 'vera', '09:30', '20:00', '', '', ''],          // outra linha no mesmo dia (ex.: preenchimento noturno)
+    ],
+    feriados: [['data']],
+  });
+  assert.deepEqual(dados.registos.map((r) => [r.data, r.minutos, r.ferias]), [
+    ['2026-11-09', 60, false], ['2026-11-10', 0, true], ['2026-11-11', 0, true], ['2026-11-11', 90, false],
+  ]);
+
+  const s = calcularSaldo({ saldoInicial: 0, registos: dados.registos, hoje: '2026-11-12' });
+  assert.equal(s.saldoTotal, 60); // só o dia 9 conta
+
+  const semana = semanasEditaveis(s, dados.feriados, HORARIO_VERA)[1].dias;
+  assert.deepEqual(semana.slice(0, 3).map((d) => [d.data, d.ferias, d.editavel, d.minutos]), [
+    ['2026-11-09', false, true, 60], ['2026-11-10', true, false, 0], ['2026-11-11', true, false, 0],
+  ]);
+
+  const h = historico(s, dados.feriados).find((x) => x.data === '2026-11-11');
+  assert.deepEqual([h.ferias, h.trabalhados, h.entrada, h.notas], [true, 0, null, ['Férias de verão']]);
+
+  assert.throws(
+    () => validarRegisto({ data: '2026-11-11', entrada: '09:30', saida: '18:30' }, '2026-11-12', new Set(), { ferias: true }),
+    /férias/,
+  );
 });

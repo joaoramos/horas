@@ -99,7 +99,7 @@ const folhaAntiga = () => ({
     ['data', 'funcionario', 'horas', 'nota', 'atualizado_em'],
     ['2026-10-27', 'vera', -2, 'Consulta', ''],
   ]),
-  'Feriados + IL': folhaSimulada('Feriados + IL', [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']]),
+  Feriados: folhaSimulada('Feriados', [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']]),
 });
 
 test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha antiga', () => {
@@ -111,12 +111,12 @@ test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha a
   assert.deepEqual(folhas.Funcionarios.dados[0], ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa']);
   assert.deepEqual(folhas.Funcionarios.dados[1].slice(5), ['09:00', '18:00', 1]);
   assert.deepEqual(folhas.Funcionarios.dados[2].slice(5), ['09:30', '18:30', 1]);
-  assert.deepEqual(folhas.Registos.dados[0], ['data', 'funcionario', 'horas', 'nota', 'atualizado_em', 'entrada', 'saida']);
+  assert.deepEqual(folhas.Registos.dados[0], ['data', 'funcionario', 'horas', 'nota', 'atualizado_em', 'entrada', 'saida', 'tipo']);
   // Os dados existentes ficam intactos
   assert.deepEqual(folhas.Registos.dados[1].slice(0, 4), ['2026-10-27', 'vera', -2, 'Consulta']);
   assert.equal(folhas.Funcionarios.dados[2][3], 70);
   // Usa o separador de feriados existente, sem criar outro
-  assert.deepEqual(Object.keys(folhas).sort(), ['Feriados + IL', 'Funcionarios', 'Registos']);
+  assert.deepEqual(Object.keys(folhas).sort(), ['Feriados', 'Funcionarios', 'Registos']);
 });
 
 test('Apps Script: registar e preencher escrevem os horários nas colunas certas', () => {
@@ -143,6 +143,12 @@ test('Apps Script: registar e preencher escrevem os horários nas colunas certas
   assert.deepEqual([linha('2026-11-02').entrada, linha('2026-11-02').saida, linha('2026-11-02').horas], ['10:00', '19:00', 0]);
   assert.deepEqual([linha('2026-11-03').entrada, linha('2026-11-03').saida], ['09:30', '18:30']);
 
+  // Um dia marcado como férias na folha não se altera pela app
+  const iTipo = folhas.Registos.dados[0].indexOf('tipo');
+  folhas.Registos.dados.find((l) => l[0] === '2026-11-03')[iTipo] = 'Férias';
+  const recusado = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-03', entrada: '09:30', saida: '19:30', horas: 1 });
+  assert.deepEqual([recusado.ok, /férias/.test(recusado.erro)], [false, true]);
+
   // Valores inválidos são recusados
   assert.equal(script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-04', entrada: '9h', saida: '18:30', horas: 0 }).ok, false);
   assert.equal(script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-04', entrada: '09:30', saida: '23:30', horas: 4 }).ok, false);
@@ -152,6 +158,7 @@ test('Apps Script: registar e preencher escrevem os horários nas colunas certas
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
   const vera = dados.registos.filter((x) => x.funcionario === 'vera').map((x) => [x.data, x.minutos]);
   assert.deepEqual(vera, [['2026-10-27', -120], ['2026-11-02', 0], ['2026-11-03', 0]]);
+  assert.equal(dados.registos.find((x) => x.data === '2026-11-03').ferias, true);
 });
 
 test('Apps Script: datas guardadas como datas numa folha com outro fuso horário', () => {
@@ -167,7 +174,7 @@ test('Apps Script: datas guardadas como datas numa folha com outro fuso horário
       [meiaNoiteEmMadrid('2026-11-05'), 'vera', '09:30', '19:30', 1, '', ''],
       [meiaNoiteEmMadrid('2026-11-06'), 'vera', '09:30', '18:30', 0, '', ''],
     ]),
-    'Feriados + IL': folhaSimulada('Feriados + IL', [['data', 'descricao'], [meiaNoiteEmMadrid('2026-12-08'), 'Imaculada Conceição']]),
+    Feriados: folhaSimulada('Feriados', [['data', 'descricao'], [meiaNoiteEmMadrid('2026-12-08'), 'Imaculada Conceição']]),
   };
   const script = carregarScript(folhas, { fuso: 'Europe/Madrid' });
 

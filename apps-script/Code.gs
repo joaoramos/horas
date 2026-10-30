@@ -9,13 +9,13 @@
 const FOLHAS = {
   funcionarios: 'Funcionarios',
   registos: 'Registos',
-  feriados: 'Feriados + IL', // tem de ser igual ao nome do separador na folha
+  feriados: 'Feriados', // tem de ser igual ao nome do separador na folha
 };
 
 // Colunas de cada separador, com o formato de cada uma ('@' = texto simples)
 const COLUNAS = {
   funcionarios: [['id', '@'], ['nome', '@'], ['pin', '@'], ['saldo_inicial', '0.00'], ['ativo', '@'], ['entrada', '@'], ['saida', '@'], ['pausa', '0.00']],
-  registos: [['data', '@'], ['funcionario', '@'], ['entrada', '@'], ['saida', '@'], ['horas', '0.00'], ['nota', '@'], ['atualizado_em', 'yyyy-mm-dd hh:mm']],
+  registos: [['data', '@'], ['funcionario', '@'], ['entrada', '@'], ['saida', '@'], ['horas', '0.00'], ['nota', '@'], ['atualizado_em', 'yyyy-mm-dd hh:mm'], ['tipo', '@']],
   feriados: [['data', '@'], ['descricao', '@']],
 };
 
@@ -215,6 +215,7 @@ function registar(p) {
     const chave = p.funcionario + ' ' + p.data;
     for (let i = 1; i < valores.length; i++) {
       if (chaveDaLinha(valores[i], col) !== chave) continue;
+      if (normalizarCabecalho(valores[i][col.tipo]) === 'ferias') throw new Error('Dia de férias: só pode ser alterado na folha');
       // Mantém a nota e as outras colunas da linha
       const n = i + 1;
       folha.getRange(n, col.entrada + 1).setValue(p.entrada);
