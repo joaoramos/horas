@@ -9,7 +9,7 @@
 const FOLHAS = {
   funcionarios: 'Funcionarios',
   registos: 'Registos',
-  feriados: 'Feriados',
+  feriados: 'Feriados + IL', // tem de ser igual ao nome do separador na folha
 };
 const FUSO = 'Europe/Lisbon';
 

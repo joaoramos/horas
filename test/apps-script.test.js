@@ -95,7 +95,7 @@ const folhaAntiga = () => ({
     ['data', 'funcionario', 'horas', 'nota', 'atualizado_em'],
     ['2026-10-27', 'vera', -2, 'Consulta', ''],
   ]),
-  Feriados: folhaSimulada('Feriados', [['data', 'descricao']]),
+  'Feriados + IL': folhaSimulada('Feriados + IL', [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']]),
 });
 
 test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha antiga', () => {
@@ -111,6 +111,8 @@ test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha a
   // Os dados existentes ficam intactos
   assert.deepEqual(folhas.Registos.dados[1].slice(0, 4), ['2026-10-27', 'vera', -2, 'Consulta']);
   assert.equal(folhas.Funcionarios.dados[2][3], 70);
+  // Usa o separador de feriados existente, sem criar outro
+  assert.deepEqual(Object.keys(folhas).sort(), ['Feriados + IL', 'Funcionarios', 'Registos']);
 });
 
 test('Apps Script: registar e preencher escrevem os horários nas colunas certas', () => {
@@ -143,6 +145,7 @@ test('Apps Script: registar e preencher escrevem os horários nas colunas certas
 
   // E o Worker lê o resultado como esperado
   const dados = interpretar(script.get().dados);
+  assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
   const vera = dados.registos.filter((x) => x.funcionario === 'vera').map((x) => [x.data, x.minutos]);
   assert.deepEqual(vera, [['2026-10-27', -120], ['2026-11-02', 0], ['2026-11-03', 0]]);
 });

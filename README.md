@@ -55,15 +55,55 @@ Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 | --- | --- | --- |
 | `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `entrada`, `saida`, `pausa` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `entrada`/`saida` são o horário habitual (ex.: `09:30` e `18:30`) e `pausa` as horas sem trabalho (ex.: `1`). |
 | `Registos` | `data`, `funcionario`, `entrada`, `saida`, `horas`, `nota`, `atualizado_em` | Uma linha por pessoa e por dia útil, com a hora de entrada e de saída. `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir do horário. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
-| `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
+| `Feriados + IL` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
 
-- Para **acrescentar um funcionário**, basta uma nova linha em `Funcionarios`.
-- Para **acertar o balanço** de alguém, altere `saldo_inicial` ou acrescente uma linha em `Registos`.
-- Para **mudar o horário habitual** de alguém, altere `entrada`, `saida` ou `pausa` em `Funcionarios`. Os dias já registados mantêm o horário que tinham.
-- Se editar um dia à mão, mude a `entrada` e a `saida`: quando existem, o desvio é calculado a partir delas e a coluna `horas` é ignorada.
-- Para **aprovar um dia completo** ou trabalho ao fim de semana ou feriado, acrescente uma linha em `Registos` (ex.: `-8` ou `8`) com uma `nota` a explicar.
-- As datas podem estar em `2026-10-24` ou `24/10/2026`. As horas aceitam `1,5`, `-1.25`, `1:30` ou `-2h`.
-- As alterações feitas à mão aparecem na app em até 30 segundos.
+### Manutenção da folha
+
+A folha é a fonte de verdade da app: o que lá estiver aparece na app em até 30 segundos.
+Estas são as tarefas de quem a mantém (APJM).
+
+#### Todos os meses
+
+- **Depois do fecho de cada mês** (no primeiro dia útil do mês seguinte), abra a página da equipa na app e veja, para cada pessoa, se houve **horas a descontar no salário** (saldo abaixo de −30h) ou **horas perdidas** (acima de +50h). As horas a descontar têm de ser comunicadas ao processamento salarial. A app não o faz.
+- **Durante o mês**, veja quem tem a etiqueta "Perto do limite", "Acima de +50h" ou "Abaixo de −30h", e fale com essa pessoa antes do fecho.
+- Confirme que o separador `Registos` tem uma linha por pessoa para cada dia útil que passou (o preenchimento é automático, todas as noites). Se faltarem dias seguidos, avise quem mantém a app: o preenchimento só recupera os últimos 31 dias.
+
+#### Todos os anos
+
+- **Antes de 1 de janeiro**, acrescente ao separador `Feriados + IL` os feriados do ano seguinte: os nacionais (incluindo os móveis, como a Sexta-feira Santa e o Corpo de Deus, que mudam de data todos os anos) e o feriado municipal. Uma linha por feriado, com a `data` e a `descricao`.
+- Se a APJM decidir que outros dias de encerramento não contam como dia de trabalho (ex.: pontes), acrescente-os também em `Feriados + IL`.
+- Se acrescentar um feriado depois de esse dia já ter passado, apague as linhas desse dia em `Registos` (foram criadas pelo preenchimento noturno).
+
+#### Funcionários (separador `Funcionarios`)
+
+- **Nova pessoa:** acrescente uma linha.
+  - O `id` é o endereço da página (ex.: `ana` → https://horas.jardimdamata.pt/ana): só letras minúsculas, números e hífenes.
+  - O `pin` é o código de acesso, escrito como texto para não perder zeros à esquerda (ex.: `0427`).
+  - Preencha a `entrada` e a `saida` do horário habitual (ex.: `09:00` e `18:00`) e a `pausa` em horas (ex.: `1`). Com 1h de pausa, a saída é 9 horas depois da entrada.
+  - Deixe o `saldo_inicial` a `0`. O saldo inicial fica isento dos limites de +50h e −30h, por isso só serve para saldos anteriores à app.
+  - Escreva `sim` em `ativo`.
+- **Mudança de horário habitual:** altere a `entrada`, a `saida` ou a `pausa`. Vale para os dias ainda sem registo. Os dias que já estão em `Registos` (passados ou já planeados) mantêm o horário que tinham: corrija-os à mão, se for preciso.
+- **Mudança de PIN:** altere o `pin`. Na app, a pessoa terá de introduzir o PIN novo.
+- **Saída de uma pessoa:** escreva `não` em `ativo`. Não apague a linha nem os registos dessa pessoa, para manter o histórico.
+
+#### Aprovações e correções (separador `Registos`)
+
+Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas semanas seguintes, e só até 2 horas a mais ou a menos por dia. Tudo o resto faz-se aqui. Registar na folha é a aprovação da APJM, por isso escreva sempre uma `nota` a explicar.
+
+- **Ausência de dia completo** (art. 5.º, sempre com aprovação prévia): na linha dessa pessoa nesse dia, apague a `entrada` e a `saida` e escreva `-8` em `horas`. Se ainda não houver linha, acrescente uma com `data`, `funcionario`, `horas` = `-8` e a `nota`.
+- **Ausência de parte do dia com mais de 2 horas:** igual, com as horas em falta (ex.: `-4`) e sem `entrada` nem `saida`.
+- **Trabalho ao fim de semana ou num feriado:** acrescente uma linha com as horas trabalhadas em `horas` (ex.: `8`). A `entrada` e a `saida` são opcionais e só servem de referência. O trabalho ao fim de semana conta para o saldo, mas não aparece no histórico da app; o trabalho num feriado aparece.
+- **Gozo de horas positivas que afete os períodos não letivos** (art. 4.º): a autorização é dada fora da app. A pessoa regista as horas na app como habitualmente; se quiser, acrescente uma `nota` nessa linha.
+- **Corrigir um dia:** altere a `entrada` e a `saida` dessa linha. Quando um dia útil tem entrada e saída, o desvio é calculado a partir delas e a coluna `horas` é ignorada (não precisa de a atualizar).
+- **Acertar o saldo de alguém:** prefira acrescentar uma linha com as horas e uma `nota`, em vez de mudar o `saldo_inicial`. Assim o acerto fica visível no histórico e conta para os limites.
+
+#### Cuidados
+
+- Não mude os nomes dos separadores (`Funcionarios`, `Registos`, `Feriados + IL`) nem os cabeçalhos das colunas, e não apague colunas. Para renomear um separador, é preciso mudar também o nome em `FOLHAS`, no início do `Code.gs`, e publicar uma nova versão do Apps Script. Pode acrescentar colunas novas e ordenar as linhas.
+- Não apague linhas de `Registos`, exceto para corrigir um engano. O histórico da app e os fechos de mês dependem delas.
+- As datas podem estar em `2026-10-24` ou `24/10/2026`. As horas do dia em `09:30`. As horas em `horas` aceitam `1,5`, `-1.25`, `1:30` ou `-2h`.
+- A folha tem os PIN de todas as pessoas: partilhe-a só com quem a mantém.
+- Os limites (+50h e −30h), a data de início dos limites e o máximo de 2 horas por dia estão no código da app, não na folha. Para os mudar, fale com quem mantém a app.
 
 ## Regras de cálculo
 
