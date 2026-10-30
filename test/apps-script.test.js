@@ -49,17 +49,21 @@ function folhaSimulada(nome, linhas) {
   };
 }
 
-function carregarScript(folhas) {
+function carregarScript(folhas, { fuso = 'Europe/Lisbon' } = {}) {
   const propriedades = { TOKEN: 'segredo' };
   const contexto = vm.createContext({
+    // O mesmo Date do teste, para que `instanceof Date` funcione dentro do script
+    Date,
     SpreadsheetApp: {
       getActive: () => ({
+        getSpreadsheetTimeZone: () => fuso,
         getSheetByName: (n) => folhas[n] ?? null,
         insertSheet: (n) => (folhas[n] = folhaSimulada(n, [])),
       }),
     },
     Utilities: {
-      formatDate: (d) => d.toISOString().slice(0, 10),
+      // Como no Apps Script: a data vista no fuso horário indicado
+      formatDate: (d, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d),
       getUuid: () => 'novo-token',
     },
     PropertiesService: {
@@ -148,4 +152,33 @@ test('Apps Script: registar e preencher escrevem os horários nas colunas certas
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
   const vera = dados.registos.filter((x) => x.funcionario === 'vera').map((x) => [x.data, x.minutos]);
   assert.deepEqual(vera, [['2026-10-27', -120], ['2026-11-02', 0], ['2026-11-03', 0]]);
+});
+
+test('Apps Script: datas guardadas como datas numa folha com outro fuso horário', () => {
+  // Numa folha em Madrid, uma célula de data guarda a meia-noite de Madrid (23:00 do dia anterior em Lisboa)
+  const meiaNoiteEmMadrid = (data) => new Date(`${data}T00:00:00+01:00`);
+  const folhas = {
+    Funcionarios: folhaSimulada('Funcionarios', [
+      ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa'],
+      ['vera', 'Vera', '2222', 0, 'sim', '09:30', '18:30', 1],
+    ]),
+    Registos: folhaSimulada('Registos', [
+      ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'atualizado_em'],
+      [meiaNoiteEmMadrid('2026-11-05'), 'vera', '09:30', '19:30', 1, '', ''],
+      [meiaNoiteEmMadrid('2026-11-06'), 'vera', '09:30', '18:30', 0, '', ''],
+    ]),
+    'Feriados + IL': folhaSimulada('Feriados + IL', [['data', 'descricao'], [meiaNoiteEmMadrid('2026-12-08'), 'Imaculada Conceição']]),
+  };
+  const script = carregarScript(folhas, { fuso: 'Europe/Madrid' });
+
+  // Leitura: cada linha fica no seu dia
+  let dados = interpretar(script.get().dados);
+  assert.deepEqual(dados.registos.map((r) => [r.data, r.minutos]), [['2026-11-05', 60], ['2026-11-06', 0]]);
+  assert.deepEqual([...dados.feriados.keys()], ['2026-12-08']);
+
+  // Escrita: alterar o dia 6 atualiza a linha do dia 6, e não a do dia 5
+  const r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-06', entrada: '09:30', saida: '20:00', horas: 1.5 });
+  assert.equal(r.ok, true, r.erro);
+  dados = interpretar(script.get().dados);
+  assert.deepEqual(dados.registos.map((x) => [x.data, x.minutos]), [['2026-11-05', 60], ['2026-11-06', 90]]);
 });

@@ -11,7 +11,6 @@ const FOLHAS = {
   registos: 'Registos',
   feriados: 'Feriados + IL', // tem de ser igual ao nome do separador na folha
 };
-const FUSO = 'Europe/Lisbon';
 
 // Colunas de cada separador, com o formato de cada uma ('@' = texto simples)
 const COLUNAS = {
@@ -145,9 +144,17 @@ function lerFolha(nome) {
       if (!(v instanceof Date)) return v;
       // Horas escritas como hora (ex.: 9:30) chegam como datas de 1899: usar o texto mostrado
       if (v.getFullYear() < 1900) return textos[i][j];
-      return Utilities.formatDate(v, FUSO, 'yyyy-MM-dd');
+      return textoDeData(v);
     })
   );
+}
+
+/**
+ * Uma célula de data guarda a meia-noite no fuso horário da folha (Ficheiro › Definições).
+ * Para não mudar de dia, as datas são sempre lidas nesse fuso, e não num fuso fixo.
+ */
+function textoDeData(d) {
+  return Utilities.formatDate(d, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
 
 function normalizarCabecalho(texto) {
@@ -162,7 +169,7 @@ function normalizarCabecalho(texto) {
 }
 
 function textoDaData(v) {
-  return v instanceof Date ? Utilities.formatDate(v, FUSO, 'yyyy-MM-dd') : String(v).trim();
+  return v instanceof Date ? textoDeData(v) : String(v).trim();
 }
 
 function validarLinha(p, maximo) {
