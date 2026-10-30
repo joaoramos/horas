@@ -1,6 +1,6 @@
 import { acrescentarRegistos, carregarDados, carregarDadosAtuais, gravarRegisto } from './dados.js';
 import { ehDiaUtil, formatarHora, hojeEmLisboa, somarDias } from './datas.js';
-import { calcularSaldo, desvioDoHorario, ErroPublico, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
+import { calcularSaldo, desvioDoHorario, ErroPublico, feriasDoAno, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
 
 function json(corpo, estado = 200) {
   return new Response(JSON.stringify(corpo), {
@@ -40,6 +40,7 @@ function detalhe(funcionario, dados, hoje) {
     semanas: semanasEditaveis(saldo, dados.feriados, funcionario.horario),
     historico: historico(saldo, dados.feriados),
     fechos: [...saldo.fechos].reverse(),
+    ferias: feriasDoAno(saldo, dados.feriados, funcionario.diasFerias),
   };
 }
 

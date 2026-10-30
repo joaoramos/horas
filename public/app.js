@@ -136,7 +136,7 @@ function comPlaneadas(r, etiqueta = 'com as horas planeadas') {
   return `<span class="saldo-previsto"><b>${horas(r.saldoPrevisto)}</b> ${etiqueta}</span>`;
 }
 
-function cartoesSaldo(r) {
+function cartoesSaldo(r, ferias) {
   const l = r.limites;
   const antesDoInicio = r.hoje < l.inicio;
   const previstoComLimites = l.previsto !== l.saldo
@@ -160,7 +160,30 @@ function cartoesSaldo(r) {
         <dt>Saldo transitado</dt>
         <dd><strong>${horas(r.saldoTransitado)}</strong><span>Saldo anterior aos limites. Não tem limite e vai diminuindo à medida que é compensado.</span></dd>
       </div>` : ''}
+      ${ferias ? cartaoFerias(ferias) : ''}
     </dl>`;
+}
+
+const dias = (n) => `${String(n).replace('.', ',')} ${n === 1 ? 'dia' : 'dias'}`;
+
+/** Dias de férias do ano: disponíveis, usados e marcados (a APJM marca-os na folha). */
+function cartaoFerias(f) {
+  const marcados = f.marcados.length;
+  const proximos = f.marcados.slice(0, 5).map((data) => formatar(data, { day: 'numeric', month: 'short' }).replace(/\./g, ''));
+  const detalhe = [
+    f.total === null ? null : `de ${dias(f.total)} em ${f.ano}`,
+    `${dias(f.usados)} ${f.usados === 1 ? 'usado' : 'usados'}`,
+    `${dias(marcados)} ${marcados === 1 ? 'marcado' : 'marcados'}`,
+  ].filter(Boolean).join(' · ');
+  return `
+      <div class="saldo cartao">
+        <dt>Saldo de férias</dt>
+        <dd>${f.disponiveis === null
+          ? `<strong>—</strong><span>A APJM ainda não indicou quantos dias de férias tem em ${f.ano}.</span>`
+          : `<strong>${dias(f.disponiveis)}</strong><span>${f.disponiveis === 1 ? 'disponível' : 'disponíveis'}</span>`}
+          <span class="saldo-previsto">${detalhe}</span>
+          ${proximos.length ? `<span class="saldo-previsto">Marcados: ${proximos.join(', ')}${marcados > proximos.length ? '…' : ''}</span>` : ''}</dd>
+      </div>`;
 }
 
 /** Avisos do art. 2.º: perto ou fora dos limites, e o resultado do último fecho de mês. */
@@ -479,7 +502,7 @@ function mostrarFuncionario(d, pin) {
     <section class="band band--surface" aria-labelledby="titulo-saldo">
       <h2 id="titulo-saldo">Saldo</h2>
       ${avisosLimites(r)}
-      ${cartoesSaldo(r)}
+      ${cartoesSaldo(r, d.ferias)}
     </section>
 
     <section class="band" aria-labelledby="titulo-registar">

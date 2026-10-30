@@ -14,13 +14,15 @@ const FOLHAS = {
 
 // Colunas de cada separador, com o formato de cada uma ('@' = texto simples)
 const COLUNAS = {
-  funcionarios: [['id', '@'], ['nome', '@'], ['pin', '@'], ['saldo_inicial', '0.00'], ['ativo', '@'], ['entrada', '@'], ['saida', '@'], ['pausa', '0.00']],
+  funcionarios: [['id', '@'], ['nome', '@'], ['pin', '@'], ['saldo_inicial', '0.00'], ['ativo', '@'], ['entrada', '@'], ['saida', '@'], ['pausa', '0.00'], ['dias_ferias', '0.##']],
   registos: [['data', '@'], ['funcionario', '@'], ['entrada', '@'], ['saida', '@'], ['horas', '0.00'], ['nota', '@'], ['atualizado_em', 'yyyy-mm-dd hh:mm'], ['tipo', '@']],
   feriados: [['data', '@'], ['descricao', '@']],
 };
 
 // Horário habitual das pessoas iniciais (o resto preenche-se na folha)
 const HORARIOS_INICIAIS = { mariana: ['09:00', '18:00', 1], vera: ['09:30', '18:30', 1] };
+// Dias de férias por ano quando a folha ainda não os indica (o mínimo legal; ajustar na folha)
+const DIAS_FERIAS_POR_OMISSAO = 22;
 
 /**
  * Correr à mão: cria os separadores e o token, ou atualiza uma folha antiga.
@@ -30,8 +32,8 @@ function configurar() {
   const ss = SpreadsheetApp.getActive();
 
   criarFolha(ss, FOLHAS.funcionarios, COLUNAS.funcionarios, [
-    ['mariana', 'Mariana', '0000', 70, 'sim', '09:00', '18:00', 1],
-    ['vera', 'Vera', '0000', 0, 'sim', '09:30', '18:30', 1],
+    ['mariana', 'Mariana', '0000', 70, 'sim', '09:00', '18:00', 1, 22],
+    ['vera', 'Vera', '0000', 0, 'sim', '09:30', '18:30', 1, 22],
   ]);
   criarFolha(ss, FOLHAS.registos, COLUNAS.registos, []);
   criarFolha(ss, FOLHAS.feriados, COLUNAS.feriados, [
@@ -78,8 +80,9 @@ function garantirColunas(folha, colunas) {
 function preencherHorariosIniciais(folha) {
   const valores = folha.getDataRange().getValues();
   const cab = valores[0].map(normalizarCabecalho);
-  const [iId, iEntrada, iSaida, iPausa] = ['id', 'entrada', 'saida', 'pausa'].map((c) => cab.indexOf(c));
+  const [iId, iEntrada, iSaida, iPausa, iFerias] = ['id', 'entrada', 'saida', 'pausa', 'dias_ferias'].map((c) => cab.indexOf(c));
   for (let i = 1; i < valores.length; i++) {
+    if (valores[i][iId] !== '' && valores[i][iFerias] === '') folha.getRange(i + 1, iFerias + 1).setValue(DIAS_FERIAS_POR_OMISSAO);
     const horario = HORARIOS_INICIAIS[String(valores[i][iId]).trim().toLowerCase()];
     if (!horario) continue;
     if (valores[i][iEntrada] === '') folha.getRange(i + 1, iEntrada + 1).setValue(horario[0]);

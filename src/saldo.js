@@ -241,6 +241,26 @@ export function semanasEditaveis(saldo, feriados, horario) {
 }
 
 /**
+ * Saldo de férias do ano de `hoje`: os dias marcados como férias em dias úteis desse ano,
+ * separados em usados (já passaram) e marcados (hoje ou no futuro).
+ */
+export function feriasDoAno(saldo, feriados, total) {
+  const ano = saldo.hoje.slice(0, 4);
+  const dias = saldo.dias
+    .filter((d) => d.ferias && d.data.startsWith(ano) && ehDiaUtil(d.data, feriados))
+    .map((d) => d.data);
+  const usados = dias.filter((data) => data < saldo.hoje);
+  const marcados = dias.filter((data) => data >= saldo.hoje);
+  return {
+    ano: Number(ano),
+    total,
+    usados: usados.length,
+    marcados,
+    disponiveis: total === null ? null : total - usados.length - marcados.length,
+  };
+}
+
+/**
  * Histórico dos dias de semana, do primeiro registo até hoje (ou ao último dia planeado).
  * Os feriados aparecem sempre, como dias sem trabalho; os fins de semana nunca aparecem,
  * mas continuam a contar para o saldo.

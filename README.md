@@ -53,7 +53,7 @@ Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 
 | Separador | Colunas | Para quê |
 | --- | --- | --- |
-| `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `entrada`, `saida`, `pausa` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `entrada`/`saida` são o horário habitual (ex.: `09:30` e `18:30`) e `pausa` as horas sem trabalho (ex.: `1`). |
+| `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `entrada`, `saida`, `pausa`, `dias_ferias` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `entrada`/`saida` são o horário habitual (ex.: `09:30` e `18:30`) e `pausa` as horas sem trabalho (ex.: `1`). `dias_ferias` são os dias de férias do ano corrente (ex.: `22`). |
 | `Registos` | `data`, `funcionario`, `entrada`, `saida`, `horas`, `nota`, `atualizado_em`, `tipo` | Uma linha por pessoa e por dia útil, com a hora de entrada e de saída. `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir do horário. `tipo` fica vazio nos dias normais; `férias` marca o dia como férias dessa pessoa. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
 | `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
 
@@ -72,6 +72,7 @@ Estas são as tarefas de quem a mantém (APJM).
 
 - **Antes de 1 de janeiro**, acrescente ao separador `Feriados` os feriados do ano seguinte: os nacionais (incluindo os móveis, como a Sexta-feira Santa e o Corpo de Deus, que mudam de data todos os anos) e o feriado municipal. Uma linha por feriado, com a `data` e a `descricao`.
 - Se a APJM decidir que outros dias de encerramento não contam como dia de trabalho (ex.: pontes), acrescente-os também em `Feriados`.
+- **No início de janeiro**, atualize `dias_ferias` em `Funcionarios` com os dias de férias de cada pessoa para o novo ano, incluindo os dias do ano anterior que a APJM aceite passar para este. A app conta só as férias do ano corrente.
 - Se acrescentar um feriado depois de esse dia já ter passado, apague as linhas desse dia em `Registos` (foram criadas pelo preenchimento noturno).
 
 #### Funcionários (separador `Funcionarios`)
@@ -82,6 +83,7 @@ Estas são as tarefas de quem a mantém (APJM).
   - Preencha a `entrada` e a `saida` do horário habitual (ex.: `09:00` e `18:00`) e a `pausa` em horas (ex.: `1`). Com 1h de pausa, a saída é 9 horas depois da entrada.
   - Deixe o `saldo_inicial` a `0`. O saldo inicial fica isento dos limites de +50h e −30h, por isso só serve para saldos anteriores à app.
   - Escreva `sim` em `ativo`.
+  - Em `dias_ferias`, indique os dias de férias deste ano (ex.: `22`; se a pessoa entrar a meio do ano, os dias proporcionais). Se ficar vazio, a pessoa vê que os dias ainda não foram indicados.
 - **Mudança de horário habitual:** altere a `entrada`, a `saida` ou a `pausa`. Vale para os dias ainda sem registo. Os dias que já estão em `Registos` (passados ou já planeados) mantêm o horário que tinham: corrija-os à mão, se for preciso.
 - **Mudança de PIN:** altere o `pin`. Na app, a pessoa terá de introduzir o PIN novo.
 - **Saída de uma pessoa:** escreva `não` em `ativo`. Não apague a linha nem os registos dessa pessoa, para manter o histórico.
@@ -93,6 +95,7 @@ Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas 
 - **Férias:** para cada dia útil de férias, escreva `férias` na coluna `tipo` da linha dessa pessoa nesse dia. Se ainda não houver linha (ex.: férias no futuro), acrescente uma com `data`, `funcionario`, `tipo` = `férias` e, se quiser, uma `nota` (ex.: "Férias de verão"). Uma linha por dia; os fins de semana e feriados não precisam de linha.
   - Um dia de férias não conta para o saldo: a `entrada`, a `saida` e as `horas` dessa linha são ignoradas, e também outras linhas desse dia.
   - Na app, o dia aparece como "Férias", inativo, e a pessoa não o pode alterar.
+  - O cartão "Saldo de férias", na página de cada pessoa, mostra os dias disponíveis: `dias_ferias` menos os dias úteis marcados como férias nesse ano. Os dias já passados aparecem como usados e os futuros como marcados. Fins de semana e feriados marcados como férias não contam.
   - Para cancelar férias, apague `férias` da coluna `tipo` (ou apague a linha, se for no futuro). O dia volta a ser um dia normal.
   - Não use `-8` para férias: isso desconta 8 horas no saldo.
 - **Ausência de dia completo** (art. 5.º, sempre com aprovação prévia): na linha dessa pessoa nesse dia, apague a `entrada` e a `saida` e escreva `-8` em `horas`. Se ainda não houver linha, acrescente uma com `data`, `funcionario`, `horas` = `-8` e a `nota`.
@@ -141,8 +144,8 @@ e os valores (limites, data de início, máximo diário) em `REGRAS`, no início
 
 Sempre que alterar o `Code.gs`, faça **Implementar › Gerir implementações › Editar › Nova versão**, para que o URL continue o mesmo.
 
-**Atualizar uma folha antiga.** Se a folha foi criada antes de haver horários, depois de colar o `Code.gs` novo:
-1. Corra outra vez a função `configurar`. Ela acrescenta as colunas `entrada`, `saida` e `pausa` em `Funcionarios`, e `entrada` e `saida` em `Registos`. Também preenche o horário habitual da Mariana (09:00–18:00) e da Vera (09:30–18:30), com 1h de pausa. Não apaga nem altera mais nada.
+**Atualizar uma folha antiga.** Sempre que o `Code.gs` traz colunas novas, depois de o colar:
+1. Corra outra vez a função `configurar`. Ela acrescenta as colunas que faltam: `entrada`, `saida`, `pausa` e `dias_ferias` em `Funcionarios`, e `entrada`, `saida` e `tipo` em `Registos`. Também preenche o que estiver vazio: o horário habitual da Mariana (09:00–18:00) e da Vera (09:30–18:30), com 1h de pausa, e 22 dias de férias para cada pessoa. Não apaga nem altera mais nada.
 2. Publique a nova versão, como acima.
 
 ### 2. Cloudflare (deploy automático a partir do GitHub)

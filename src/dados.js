@@ -49,6 +49,14 @@ export function lerData(valor) {
   return ehDataValida(data) ? data : null;
 }
 
+/** Número de dias (ex.: 22 ou "22,5"), ou null se estiver vazio. */
+function lerDias(valor) {
+  const texto = String(valor ?? '').trim().replace(',', '.');
+  if (texto === '') return null;
+  const n = Number(texto);
+  return Number.isFinite(n) ? n : null;
+}
+
 function lerAtivo(valor) {
   const texto = normalizarCabecalho(valor);
   return !['nao', 'n', 'no', 'false', 'falso', '0', 'inativo'].includes(texto);
@@ -65,6 +73,8 @@ export function interpretar(tabelas) {
       nome: String(f.nome || f.id).trim(),
       pin: String(f.pin ?? '').trim(),
       saldoInicial: lerHoras(f.saldo_inicial) ?? 0,
+      // Dias de férias do ano corrente (vazio = ainda não indicado pela APJM)
+      diasFerias: lerDias(f.dias_ferias),
       ativo: lerAtivo(f.ativo),
       horario: {
         entrada: lerHora(f.entrada) ?? lerHora(HORARIO_POR_OMISSAO.entrada),
@@ -224,9 +234,9 @@ const demo = (() => {
   return {
     tabelas: () => ({
       funcionarios: [
-        ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa'],
-        ['mariana', 'Mariana', '1234', 70, 'sim', '9:00', '18:00', 1],
-        ['vera', 'Vera', '5678', 0, 'sim', '9:30', '18:30', 1],
+        ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias'],
+        ['mariana', 'Mariana', '1234', 70, 'sim', '9:00', '18:00', 1, 22],
+        ['vera', 'Vera', '5678', 0, 'sim', '9:30', '18:30', 1, ''],
       ],
       registos: [colunas, ...iniciar().map((r) => colunas.map((c) => r[c]))],
       feriados: [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']],

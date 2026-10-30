@@ -108,9 +108,9 @@ test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha a
   script.configurar();
   script.configurar(); // pode correr-se outra vez sem efeitos
 
-  assert.deepEqual(folhas.Funcionarios.dados[0], ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa']);
-  assert.deepEqual(folhas.Funcionarios.dados[1].slice(5), ['09:00', '18:00', 1]);
-  assert.deepEqual(folhas.Funcionarios.dados[2].slice(5), ['09:30', '18:30', 1]);
+  assert.deepEqual(folhas.Funcionarios.dados[0], ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias']);
+  assert.deepEqual(folhas.Funcionarios.dados[1].slice(5), ['09:00', '18:00', 1, 22]);
+  assert.deepEqual(folhas.Funcionarios.dados[2].slice(5), ['09:30', '18:30', 1, 22]);
   assert.deepEqual(folhas.Registos.dados[0], ['data', 'funcionario', 'horas', 'nota', 'atualizado_em', 'entrada', 'saida', 'tipo']);
   // Os dados existentes ficam intactos
   assert.deepEqual(folhas.Registos.dados[1].slice(0, 4), ['2026-10-27', 'vera', -2, 'Consulta']);

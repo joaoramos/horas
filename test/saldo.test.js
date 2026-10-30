@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { fimDoMes, segundaDeReferencia } from '../src/datas.js';
-import { calcularSaldo, desvioDoHorario, estadoDosLimites, validarRegisto, semanasEditaveis, historico } from '../src/saldo.js';
+import { calcularSaldo, desvioDoHorario, estadoDosLimites, feriasDoAno, validarRegisto, semanasEditaveis, historico } from '../src/saldo.js';
 import { preencherDias } from '../src/index.js';
 import { interpretar, lerData, lerHoras } from '../src/dados.js';
 
@@ -194,7 +194,7 @@ test('interpretar a folha aceita cabeçalhos escritos de outra forma', () => {
     registos: [['Data', 'Funcionário', 'Horas'], ['2026-10-21', 'Mariana', '1,5'], ['', '', '']],
     feriados: [['Data', 'Descrição'], ['08/12/2026', 'Imaculada Conceição']],
   });
-  assert.deepEqual(dados.funcionarios, [{ id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, ativo: true, horario: { entrada: 540, saida: 1080, pausa: 60 } }]);
+  assert.deepEqual(dados.funcionarios, [{ id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, diasFerias: null, ativo: true, horario: { entrada: 540, saida: 1080, pausa: 60 } }]);
   assert.deepEqual(dados.registos, [{ data: '2026-10-21', funcionario: 'mariana', minutos: 90, entrada: null, saida: null, ferias: false, nota: '' }]);
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
 });
@@ -260,4 +260,28 @@ test('férias: o dia não conta para o saldo, não se altera na app e aparece in
     () => validarRegisto({ data: '2026-11-11', entrada: '09:30', saida: '18:30' }, '2026-11-12', new Set(), { ferias: true }),
     /férias/,
   );
+});
+
+test('saldo de férias: dias do ano, usados e marcados', () => {
+  const dados = interpretar({
+    funcionarios: [['id', 'nome', 'dias_ferias'], ['vera', 'Vera', '22'], ['ana', 'Ana', '']],
+    registos: [
+      ['data', 'funcionario', 'tipo'],
+      ['2025-12-30', 'vera', 'férias'], // ano anterior: não conta
+      ['2026-08-03', 'vera', 'férias'],
+      ['2026-08-04', 'vera', 'férias'],
+      ['2026-08-08', 'vera', 'férias'], // sábado: não conta
+      ['2026-12-08', 'vera', 'férias'], // feriado: não conta
+      ['2026-12-23', 'vera', 'férias'],
+      ['2026-12-24', 'vera', 'férias'],
+    ],
+    feriados: [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']],
+  });
+  assert.equal(dados.funcionarios[0].diasFerias, 22);
+  assert.equal(dados.funcionarios[1].diasFerias, null);
+  const s = calcularSaldo({ saldoInicial: 0, registos: dados.registos, hoje: '2026-12-23' });
+  assert.deepEqual(feriasDoAno(s, dados.feriados, 22), {
+    ano: 2026, total: 22, usados: 2, marcados: ['2026-12-23', '2026-12-24'], disponiveis: 18,
+  });
+  assert.equal(feriasDoAno(s, dados.feriados, null).disponiveis, null);
 });
