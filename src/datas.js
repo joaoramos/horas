@@ -63,3 +63,22 @@ export function segundaDeReferencia(hoje) {
   if (d === 0) return somarDias(hoje, 1);
   return segundaDaSemana(hoje);
 }
+
+/** Último dia do mês de `data`. */
+export function fimDoMes(data) {
+  const [a, m] = data.split('-').map(Number);
+  return paraTexto(new Date(Date.UTC(a, m, 0)));
+}
+
+/** Hora do dia em minutos desde a meia-noite. Aceita "9:30", "09:30", "09:30:00" e "9h30". */
+export function lerHora(valor) {
+  const m = String(valor ?? '').trim().match(/^(\d{1,2})(?::|h)(\d{2})(?::\d{2})?$/i);
+  if (!m) return null;
+  const minutos = Number(m[1]) * 60 + Number(m[2]);
+  return Number(m[1]) < 24 && Number(m[2]) < 60 ? minutos : null;
+}
+
+/** 570 → "09:30" */
+export function formatarHora(minutos) {
+  return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+}

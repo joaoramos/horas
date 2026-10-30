@@ -1,1 +1,3 @@
 DEMO=1
+# Opcional, só em desenvolvimento: fingir que hoje é outro dia (ex.: para ver um fecho de mês)
+# HOJE=2026-12-02

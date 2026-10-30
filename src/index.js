@@ -1,6 +1,6 @@
-import { carregarDados, gravarRegisto } from './dados.js';
-import { hojeEmLisboa } from './datas.js';
-import { calcularSaldo, ErroPublico, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
+import { acrescentarRegistos, carregarDados, carregarDadosAtuais, gravarRegisto } from './dados.js';
+import { ehDiaUtil, formatarHora, hojeEmLisboa, somarDias } from './datas.js';
+import { calcularSaldo, desvioDoHorario, ErroPublico, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
 
 function json(corpo, estado = 200) {
   return new Response(JSON.stringify(corpo), {
@@ -19,8 +19,9 @@ function saldoDe(funcionario, dados, hoje) {
 }
 
 function resumo(saldo) {
-  const { saldoTotal, saldoPrevisto, saldoTransitado, semanaCorrente, semanaSeguinte, emIncumprimento, emAtraso } = saldo;
-  return { saldoTotal, saldoPrevisto, saldoTransitado, semanaCorrente, semanaSeguinte, emIncumprimento, emAtraso };
+  const { hoje, saldoTotal, saldoPrevisto, saldoTransitado, limites, fechos } = saldo;
+  // O último fecho de mês, para a APJM ver na lista horas perdidas ou a descontar
+  return { hoje, saldoTotal, saldoPrevisto, saldoTransitado, limites, ultimoFecho: fechos.at(-1) ?? null };
 }
 
 function detalhe(funcionario, dados, hoje) {
@@ -31,8 +32,14 @@ function detalhe(funcionario, dados, hoje) {
     hoje,
     regras: REGRAS,
     resumo: resumo(saldo),
-    semanas: semanasEditaveis(saldo, dados.feriados),
-    historico: historico(saldo),
+    horario: {
+      entrada: formatarHora(funcionario.horario.entrada),
+      saida: formatarHora(funcionario.horario.saida),
+      pausa: funcionario.horario.pausa,
+    },
+    semanas: semanasEditaveis(saldo, dados.feriados, funcionario.horario),
+    historico: historico(saldo, dados.feriados),
+    fechos: [...saldo.fechos].reverse(),
   };
 }
 
@@ -53,7 +60,8 @@ async function lerCorpo(request) {
 }
 
 async function api(request, env, ctx, url) {
-  const hoje = hojeEmLisboa();
+  // HOJE só serve para testar datas em desenvolvimento (DEMO=1)
+  const hoje = (env.DEMO === '1' && env.HOJE) || hojeEmLisboa();
   const partes = url.pathname.split('/').filter(Boolean); // ["api", "funcionarios", id, acao]
 
   if (request.method === 'GET' && partes.length === 2 && partes[1] === 'funcionarios') {
@@ -83,8 +91,11 @@ async function api(request, env, ctx, url) {
     if (acao === 'registos') {
       const atuais = await carregarDados(env, ctx);
       const funcionario = autenticar(atuais, id, corpo.pin);
-      const minutos = validarRegisto(corpo, hoje, atuais.feriados);
-      const dados = await gravarRegisto(env, ctx, { funcionario: funcionario.id, data: corpo.data, minutos });
+      const minutosAtuais = atuais.registos
+        .filter((r) => r.funcionario === funcionario.id && r.data === corpo.data)
+        .reduce((t, r) => t + r.minutos, 0);
+      const registo = validarRegisto(corpo, hoje, atuais.feriados, { minutosAtuais, pausa: funcionario.horario.pausa });
+      const dados = await gravarRegisto(env, ctx, { funcionario: funcionario.id, data: corpo.data, ...registo });
       return json(detalhe(funcionario, dados, hoje));
     }
   }
@@ -142,7 +153,42 @@ async function pagina(request, env, url) {
     .transform(resposta);
 }
 
+/**
+ * Preenchimento noturno (Cron Trigger): todos os dias úteis ficam na folha. Para cada pessoa,
+ * acrescenta o horário habitual nos dias úteis já terminados que ainda não têm registo.
+ * Recua até 31 dias, para recuperar noites em que o preenchimento tenha falhado.
+ */
+export async function preencherDias(env, hoje = hojeEmLisboa()) {
+  const dados = await carregarDadosAtuais(env);
+  const existentes = new Set(dados.registos.map((r) => `${r.funcionario} ${r.data}`));
+  let inicio = somarDias(hoje, -31);
+  if (inicio < REGRAS.inicioLimites) inicio = REGRAS.inicioLimites;
+
+  const linhas = [];
+  for (let data = inicio; data < hoje; data = somarDias(data, 1)) {
+    if (!ehDiaUtil(data, dados.feriados)) continue;
+    for (const f of dados.funcionarios) {
+      if (existentes.has(`${f.id} ${data}`)) continue;
+      linhas.push({
+        data,
+        funcionario: f.id,
+        entrada: formatarHora(f.horario.entrada),
+        saida: formatarHora(f.horario.saida),
+        horas: desvioDoHorario(f.horario.entrada, f.horario.saida, f.horario.pausa) / 60,
+      });
+    }
+  }
+  if (linhas.length) await acrescentarRegistos(env, linhas);
+  console.log(`Preenchimento noturno: ${linhas.length} dia(s) acrescentado(s).`);
+  return linhas.length;
+}
+
 export default {
+  async scheduled(evento, env, ctx) {
+    const hoje = (env.DEMO === '1' && env.HOJE) || hojeEmLisboa();
+    ctx.waitUntil(preencherDias(env, hoje));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/manifest.webmanifest') return manifesto(url, env, ctx);

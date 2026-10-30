@@ -18,7 +18,8 @@ const paraDate = (data) => new Date(`${data}T12:00:00Z`);
 const formatar = (data, opcoes) => new Intl.DateTimeFormat('pt-PT', { timeZone: 'UTC', ...opcoes }).format(paraDate(data));
 const diaCurto = (data) => formatar(data, { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
 const diaLongo = (data) => formatar(data, { weekday: 'long', day: 'numeric', month: 'long' });
-const sexta = (data) => `sexta, ${formatar(data, { day: 'numeric', month: 'short' }).replace(/\./g, '')}`;
+const diaMes = (data) => formatar(data, { day: 'numeric', month: 'long' });
+const nomeDoMes = (data) => formatar(data, { month: 'long' });
 
 /** Frase que explica o que um saldo significa na prática. */
 function explicar(minutos) {
@@ -101,7 +102,7 @@ document.addEventListener('visibilitychange', async () => {
     escondidaDesde = Date.now();
     return;
   }
-  const ocupada = app.querySelector('select[data-dia]:disabled, form.pin');
+  const ocupada = app.querySelector('.dia-campos select:disabled, form.pin');
   if (!escondidaDesde || Date.now() - escondidaDesde < 60_000 || ocupada) return;
   const y = window.scrollY;
   await mostrar({ manterPosicao: true });
@@ -136,34 +137,73 @@ function comPlaneadas(r, etiqueta = 'com as horas planeadas') {
 }
 
 function cartoesSaldo(r) {
+  const l = r.limites;
+  const antesDoInicio = r.hoje < l.inicio;
+  const previstoComLimites = l.previsto !== l.saldo
+    ? `<span class="saldo-previsto"><b>${horas(l.previsto)}</b> com as horas planeadas</span>` : '';
   return `
     <dl class="saldos">
       <div class="saldo saldo-total cartao">
         <dt>Saldo total</dt>
         <dd><strong>${horas(r.saldoTotal)}</strong><span>${explicar(r.saldoTotal)}</span>${comPlaneadas(r)}</dd>
       </div>
-      <div class="saldo cartao">
-        <dt>A compensar até ${sexta(r.semanaCorrente.ate)}</dt>
-        <dd><strong>${horas(r.semanaCorrente.minutos)}</strong><span>${explicar(r.semanaCorrente.minutos)}</span></dd>
+      <div class="saldo cartao${l.estado === 'ok' ? '' : ' saldo-alerta'}">
+        <dt>Saldo com limites</dt>
+        <dd><strong>${horas(l.saldo)}</strong>
+          <span>${antesDoInicio
+            ? `Os limites aplicam-se a partir de ${diaMes(l.inicio)}.`
+            : `Entre ${horas(l.negativo)} e ${horas(l.positivo)} no fecho do mês, a ${diaMes(l.proximoFecho)}.`}</span>
+          ${previstoComLimites}</dd>
       </div>
+      ${r.saldoTransitado ? `
       <div class="saldo cartao">
-        <dt>A compensar até ${sexta(r.semanaSeguinte.ate)}</dt>
-        <dd><strong>${horas(r.semanaSeguinte.minutos)}</strong><span>${explicar(r.semanaSeguinte.minutos)}</span></dd>
-      </div>
+        <dt>Saldo transitado</dt>
+        <dd><strong>${horas(r.saldoTransitado)}</strong><span>Saldo anterior aos limites. Não tem limite e vai diminuindo à medida que é compensado.</span></dd>
+      </div>` : ''}
     </dl>`;
 }
 
-function avisoIncumprimento(r) {
-  if (!r.emIncumprimento) return '';
-  const itens = r.emAtraso
-    .map((p) => `<li>${horas(p.minutos)} de ${diaLongo(p.data)}, a compensar até ${diaLongo(p.prazo)}</li>`)
+/** Avisos do art. 2.º: perto ou fora dos limites, e o resultado do último fecho de mês. */
+function avisosLimites(r) {
+  const l = r.limites;
+  const avisos = [];
+  const fecho = diaMes(l.proximoFecho);
+  if (l.estado === 'acima') {
+    avisos.push(['erro', `<strong>Acima do limite.</strong> Tem ${horas(l.perdidasNoFecho, { sinal: false })} acima de ${horas(l.positivo)}. Se não as gozar até ${fecho}, essas horas perdem-se.`]);
+  } else if (l.estado === 'abaixo') {
+    avisos.push(['erro', `<strong>Abaixo do limite.</strong> Tem ${horas(l.aDescontarNoFecho, { sinal: false })} abaixo de ${horas(l.negativo)}. Se não as compensar até ${fecho}, serão descontadas no salário.`]);
+  } else if (l.estado === 'perto') {
+    const limite = l.previsto > 0 ? l.positivo : l.negativo;
+    avisos.push(['', `<strong>Perto do limite.</strong> O saldo com limites está em ${horas(l.previsto)}, perto de ${horas(limite)}. Tente aproximá-lo de zero.`]);
+  }
+  const f = r.ultimoFecho;
+  if (f && (f.perdidas || f.aDescontar)) {
+    const mes = nomeDoMes(f.data);
+    avisos.push(['', f.perdidas
+      ? `No fecho de ${mes} perderam-se ${horas(f.perdidas, { sinal: false })} acima do limite de ${horas(l.positivo)}.`
+      : `No fecho de ${mes}, ${horas(f.aDescontar, { sinal: false })} abaixo do limite de ${horas(l.negativo)} foram para desconto no salário.`]);
+  }
+  return avisos
+    .map(([tipo, texto]) => `<div class="aviso${tipo ? ' aviso-erro' : ''}" role="${tipo ? 'alert' : 'status'}"><p>${texto}</p></div>`)
     .join('');
-  return `
-    <div class="aviso aviso-erro" role="alert">
-      <p><strong>Em incumprimento.</strong> Estas horas não foram compensadas a tempo:</p>
-      <ul>${itens}</ul>
-      <p>Compense-as o mais depressa possível.</p>
-    </div>`;
+}
+
+/** Na lista, a APJM vê as horas perdidas ou a descontar no último fecho de mês. */
+function fechoNaLista(r) {
+  const f = r.ultimoFecho;
+  if (!f || !(f.perdidas || f.aDescontar)) return '';
+  const mes = nomeDoMes(f.data);
+  return `<span class="saldo-previsto">${f.perdidas
+    ? `${horas(f.perdidas, { sinal: false })} perdidas em ${mes}`
+    : `${horas(f.aDescontar, { sinal: false })} a descontar em ${mes}`}</span>`;
+}
+
+/** Etiqueta curta para a lista da equipa. */
+function etiquetaLimites(r) {
+  const textos = { acima: `Acima de ${horas(r.limites.positivo)}`, abaixo: `Abaixo de ${horas(r.limites.negativo)}`, perto: 'Perto do limite' };
+  const texto = textos[r.limites.estado];
+  if (!texto) return '';
+  return ` <span class="etiqueta${r.limites.estado === 'perto' ? ' etiqueta-suave' : ''}">${texto}</span>`;
 }
 
 // ---------------------------------------------------------------- página: equipa
@@ -184,10 +224,9 @@ async function paginaEquipa() {
   const linhas = dados.funcionarios.map(({ id, nome, resumo: r }) => `
     <li>
       <a class="pessoa cartao" href="/${esc(id)}">
-        <span class="pessoa-nome">${esc(nome)}${r.emIncumprimento ? ' <span class="etiqueta">Em incumprimento</span>' : ''}</span>
+        <span class="pessoa-nome">${esc(nome)}${etiquetaLimites(r)}</span>
         <span class="pessoa-valor"><small>Saldo total</small>${horas(r.saldoTotal)}${comPlaneadas(r, 'planeado')}</span>
-        <span class="pessoa-valor"><small>Até ${sexta(r.semanaCorrente.ate)}</small>${horas(r.semanaCorrente.minutos)}</span>
-        <span class="pessoa-valor"><small>Até ${sexta(r.semanaSeguinte.ate)}</small>${horas(r.semanaSeguinte.minutos)}</span>
+        <span class="pessoa-valor"><small>Com limites</small>${horas(r.limites.saldo)}${fechoNaLista(r)}</span>
       </a>
     </li>`).join('');
 
@@ -198,7 +237,7 @@ async function paginaEquipa() {
     </section>
     <section class="band band--surface" aria-labelledby="titulo-saldos">
       <h2 id="titulo-saldos">Saldos</h2>
-      <p class="intro">Valores positivos são horas a mais; negativos, horas em falta. Escolha o seu nome para registar horas.</p>
+      <p class="intro">Valores positivos são horas a mais; negativos, horas em falta. No fecho de cada mês, o saldo com limites fica entre −30h e +50h. Escolha o seu nome para registar horas.</p>
       ${dados.funcionarios.length ? `<ul class="equipa">${linhas}</ul>` : '<p>Ainda não há funcionários na folha.</p>'}
     </section>`;
 }
@@ -207,64 +246,48 @@ async function paginaEquipa() {
 
 function paginaRegras() {
   document.title = 'Regras · Horas';
+  const seccoes = [
+    ['Saldo flexível', [
+      'O saldo flexível é a diferença acumulada entre as horas de trabalho realizadas e o horário previsto (art. 1.º).',
+      'O horário previsto é de segunda a sexta-feira, com 8 horas por dia. Os feriados indicados na folha não contam como dias de trabalho.',
+      'Valores positivos são horas a mais; negativos, horas em falta.',
+    ]],
+    ['Limites do saldo', [
+      'Pode acumular até <strong>50 horas positivas</strong> e até <strong>30 horas negativas</strong> sem impacto no processamento salarial (art. 2.º).',
+      'Os saldos transitam de mês para mês, dentro destes limites.',
+      'No fecho de cada mês, se o saldo for superior a +50h, fica em +50h e <strong>as horas a mais perdem-se</strong>.',
+      'No fecho de cada mês, se o saldo for inferior a −30h, <strong>as horas abaixo desse limite são descontadas no salário</strong> desse mês.',
+      'Os limites aplicam-se a partir de 1 de novembro de 2026. O saldo acumulado antes dessa data é <strong>saldo transitado</strong>: não tem limite e vai diminuindo à medida que é compensado.',
+    ]],
+    ['Gestão do saldo', [
+      'Cada pessoa gere o seu saldo de forma autónoma e consciente, procurando mantê-lo tão perto de zero quanto possível (art. 3.º).',
+      'Se sair mais tarde num dia, sempre que possível entre mais tarde no dia seguinte para compensar.',
+      'Como regra, as horas positivas gozam-se em períodos de horas distribuídos ao longo do tempo, e não em dias completos.',
+      'Na app, regista até <strong>2 horas a mais ou a menos por dia útil</strong>, em intervalos de 15 minutos. Pode registar a semana passada e planear até duas semanas à frente.',
+      'O saldo total é atualizado no fim de cada dia. As horas de hoje e dos próximos dias aparecem como planeadas.',
+    ]],
+    ['Gozo de horas positivas', [
+      'Se gozar horas positivas afetar os horários dos períodos não letivos, peça <strong>autorização prévia à APJM</strong>, com antecedência suficiente para organizar uma substituição (art. 4.º).',
+      'O pedido deve ter em conta a continuidade do funcionamento e a cobertura dos períodos em causa.',
+    ]],
+    ['Ausência de dia completo', [
+      'Gozar um dia completo com o saldo positivo é excecional, tem de ser justificado e precisa sempre de <strong>aprovação prévia da APJM</strong> (art. 5.º).',
+      'Podem justificar uma exceção: doença da própria ou de familiares próximos; ter trabalhado um dia completo num fim de semana ou feriado; ou outras situações pessoais excecionais, avaliadas pela APJM.',
+      'Os dias completos de ausência e o trabalho ao fim de semana ou feriado são registados pela APJM na folha. Na app aparecem como "Registado pela APJM" e não podem ser alterados.',
+    ]],
+  ];
   app.innerHTML = `
     <section class="band hero">
       <h1>Regras</h1>
-      <p class="lead">Como funciona a gestão e compensação das horas de trabalho.</p>
+      <p class="lead">Regulamento interno de utilização do saldo flexível.</p>
     </section>
-    <section class="band band--surface" aria-labelledby="regra-1">
-      <h2 id="regra-1">Horário</h2>
+    ${seccoes.map(([titulo, itens], i) => `
+    <section class="band${i % 2 ? '' : ' band--surface'}" aria-labelledby="regra-${i + 1}">
+      <h2 id="regra-${i + 1}">${titulo}</h2>
       <div class="prose">
-        <ul class="lista">
-        <li>O horário de trabalho é de segunda a sexta-feira, com 8 horas por dia.</li>
-        <li>Os feriados indicados na folha não contam como dias úteis.</li>
-        </ul>
+        <ul class="lista">${itens.map((t) => `<li>${t}</li>`).join('')}</ul>
       </div>
-    </section>
-    <section class="band" aria-labelledby="regra-2">
-      <h2 id="regra-2">Acrescentar ou retirar horas</h2>
-      <div class="prose">
-        <ul class="lista">
-        <li>Em cada dia útil pode trabalhar mais ou menos do que as 8 horas. A diferença conta para o seu balanço.</li>
-        <li>O balanço não pode mudar mais de <strong>2 horas por dia</strong>, para mais ou para menos (entre 6h e 10h de trabalho).</li>
-        <li>As horas registam-se em intervalos de 15 minutos.</li>
-        <li>Pode registar a semana passada e planear até duas semanas à frente.</li>
-        <li>O saldo total é atualizado no fim de cada dia útil. As horas de hoje e dos próximos dias aparecem como planeadas.</li>
-        </ul>
-      </div>
-    </section>
-    <section class="band band--surface" aria-labelledby="regra-3">
-      <h2 id="regra-3">Compensação</h2>
-      <div class="prose">
-        <ul class="lista">
-        <li>As horas acrescentadas ou retiradas têm de ser compensadas nos <strong>5 dias úteis seguintes</strong>.</li>
-        <li>Exemplo: se trabalhar mais 2 horas numa quarta-feira, tem de trabalhar menos 2 horas até à quarta-feira da semana seguinte.</li>
-        <li>Pode compensar em qualquer combinação de dias e horas, desde que o total fique compensado dentro do prazo.</li>
-        <li>As compensações abatem primeiro as horas mais antigas.</li>
-        <li>Se o prazo terminar sem as horas compensadas, a app mostra que está <strong>em incumprimento</strong> até as compensar.</li>
-        <li>Cada pessoa é responsável por manter o seu balanço a zero no fim de cada semana.</li>
-        </ul>
-      </div>
-    </section>
-    <section class="band" aria-labelledby="regra-4">
-      <h2 id="regra-4">Saldo transitado</h2>
-      <div class="prose">
-        <ul class="lista">
-        <li>O saldo que já existia antes da app (por exemplo, horas acumuladas) não tem prazo de compensação.</li>
-        <li>Vai sendo reduzido sempre que regista horas no sentido contrário e não há outras horas por compensar.</li>
-        </ul>
-      </div>
-    </section>
-    <section class="band band--surface" aria-labelledby="regra-5">
-      <h2 id="regra-5">O que significam os valores</h2>
-      <div class="prose">
-        <ul class="lista">
-        <li><strong>Saldo total:</strong> todas as horas a mais (+) ou em falta (−) até ontem, incluindo o saldo transitado.</li>
-        <li><strong>Com as horas planeadas:</strong> o saldo total depois de contar as horas de hoje e dos próximos dias. Cada dia passa para o saldo total quando termina.</li>
-        <li><strong>A compensar até sexta:</strong> horas cujo prazo termina até ao fim da semana corrente ou da seguinte, já contando com as horas que planeou.</li>
-        </ul>
-      </div>
-    </section>`;
+    </section>`).join('')}`;
 }
 
 // ---------------------------------------------------------------- página: funcionário
@@ -332,6 +355,10 @@ function pedirPin(pessoa, mensagem = '') {
   });
 }
 
+// "09:30" ⇄ 570
+const paraMinutos = (hora) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
+const paraHora = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
 function opcoesDoDia(minutos, regras) {
   const opcoes = [];
   for (let m = -regras.maxMinutosPorDia; m <= regras.maxMinutosPorDia; m += regras.passoMinutos) {
@@ -340,15 +367,36 @@ function opcoesDoDia(minutos, regras) {
   return opcoes.join('');
 }
 
+/** Horas do dia de 15 em 15 minutos, das 6:00 às 23:00 (e a atual, se estiver fora). */
+function opcoesDeHora(atual, regras) {
+  const valores = [];
+  for (let m = 6 * 60; m <= 23 * 60; m += regras.passoMinutos) valores.push(m);
+  const a = paraMinutos(atual);
+  if (!valores.includes(a)) {
+    valores.push(a);
+    valores.sort((x, y) => x - y);
+  }
+  return valores.map((m) => `<option value="${paraHora(m)}"${m === a ? ' selected' : ''}>${paraHora(m)}</option>`).join('');
+}
+
 function semana(s, d) {
   const total = s.dias.reduce((t, dia) => t + dia.minutos, 0);
   const dias = s.dias.map((dia) => {
     const quando = dia.data < d.hoje ? 'passado' : dia.data === d.hoje ? 'hoje' : 'futuro';
+    const longo = diaLongo(dia.data);
     let valor;
-    if (dia.feriado) valor = '<span class="dia-nota">Feriado</span>';
+    if (dia.apjm) {
+      valor = `<span class="dia-apjm">${dia.registado && dia.minutos > -d.regras.minutosPorDia ? `${dia.entrada}–${dia.saida} · ` : ''}${horas(dia.minutos)}<small>APJM</small></span>`;
+    } else if (dia.feriado) valor = '<span class="dia-nota">Feriado</span>';
     else if (dia.editavel) {
-      valor = `<select data-dia="${dia.data}" aria-label="Horas em ${diaLongo(dia.data)}">${opcoesDoDia(dia.minutos, d.regras)}</select>`;
-    } else valor = `<span>${horas(dia.minutos)}</span>`;
+      valor = `
+        <span class="dia-campos" data-dia="${dia.data}">
+          <select data-campo="entrada" aria-label="Entrada em ${longo}">${opcoesDeHora(dia.entrada, d.regras)}</select>
+          <span aria-hidden="true">–</span>
+          <select data-campo="saida" aria-label="Saída em ${longo}">${opcoesDeHora(dia.saida, d.regras)}</select>
+          <select data-campo="desvio" aria-label="Horas a mais ou a menos em ${longo}">${opcoesDoDia(dia.minutos, d.regras)}</select>
+        </span>`;
+    } else valor = `<span class="dia-fixo">${dia.entrada}–${dia.saida} · ${horas(dia.minutos)}</span>`;
     return `
       <li class="dia dia-${quando}">
         <span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>
@@ -368,87 +416,115 @@ function semana(s, d) {
 function tabelaHistorico(d) {
   if (!d.historico.length) return '<p>Ainda não há horas registadas.</p>';
   const estados = { confirmado: 'Confirmado', hoje: 'Hoje', planeado: 'Planeado' };
-  const linhas = d.historico.map((h) => {
-    let compensacao = '';
-    if (h.porCompensar) {
-      compensacao = `${horas(h.porCompensar)} por compensar até ${diaCurto(h.prazo)}`;
-    } else if (h.atrasado) {
-      compensacao = 'Compensação planeada fora do prazo';
-    }
-    return `
-      <tr${h.atrasado ? ' class="atrasado"' : ''}>
+  const linhas = d.historico.map((h) => `
+      <tr>
         <td>${diaCurto(h.data)}${h.notas.length ? `<small>${esc(h.notas.join(' · '))}</small>` : ''}</td>
+        <td class="num">${h.entrada ? `${h.entrada}–${h.saida}` : '—'}<small>${horas(h.trabalhados, { sinal: false })} trabalhadas</small></td>
         <td class="num">${horas(h.minutos)}</td>
-        <td class="num">${horas(h.trabalhados, { sinal: false })}</td>
-        <td>${estados[h.estado]}${compensacao ? `<small>${compensacao}</small>` : ''}</td>
-      </tr>`;
-  }).join('');
+        <td>${estados[h.estado]}${h.apjm ? '<small>Registado pela APJM</small>' : ''}</td>
+      </tr>`).join('');
   return `
     <div class="tabela">
       <table>
-        <thead><tr><th>Dia</th><th class="num">Balanço</th><th class="num">Trabalhadas</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Dia</th><th class="num">Horário</th><th class="num">Balanço</th><th>Estado</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table>
     </div>`;
 }
 
+function tabelaFechos(d) {
+  const linhas = d.fechos.map((f) => `
+      <tr>
+        <td>${nomeDoMes(f.data)} ${f.data.slice(0, 4)}</td>
+        <td class="num">${horas(f.antes)}</td>
+        <td class="num">${horas(f.depois)}</td>
+        <td>${f.perdidas ? `${horas(f.perdidas, { sinal: false })} perdidas`
+          : f.aDescontar ? `${horas(f.aDescontar, { sinal: false })} a descontar no salário` : 'Dentro dos limites'}</td>
+      </tr>`).join('');
+  return `
+    <section class="band" aria-labelledby="titulo-fechos">
+      <h2 id="titulo-fechos">Fechos de mês</h2>
+      <p class="intro">No fim de cada mês, o saldo com limites fica entre ${horas(d.regras.limiteNegativo)} e ${horas(d.regras.limitePositivo)}.</p>
+      <div class="tabela">
+        <table>
+          <thead><tr><th>Mês</th><th class="num">Saldo</th><th class="num">Após fecho</th><th>Resultado</th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
 function mostrarFuncionario(d, pin) {
   const r = d.resumo;
-  const notas = [];
-  if (r.saldoTransitado) notas.push(`Inclui ${horas(r.saldoTransitado)} de saldo transitado, sem prazo de compensação.`);
 
   app.innerHTML = `
     <section class="band hero">
       <h1>${esc(d.nome)}</h1>
-      <p class="lead">${r.emIncumprimento ? 'Tem horas por compensar fora do prazo.' : `O seu balanço de horas, a ${diaLongo(d.hoje)}.`}</p>
+      <p class="lead">O seu saldo de horas, a ${diaLongo(d.hoje)}.</p>
       <div class="actions"><button type="button" class="button sem-seta" data-sair>Sair</button></div>
     </section>
 
     <section class="band band--surface" aria-labelledby="titulo-saldo">
       <h2 id="titulo-saldo">Saldo</h2>
-      ${avisoIncumprimento(r)}
+      ${avisosLimites(r)}
       ${cartoesSaldo(r)}
-      ${notas.map((n) => `<p class="nota">${n}</p>`).join('')}
     </section>
 
     <section class="band" aria-labelledby="titulo-registar">
       <h2 id="titulo-registar">Registar horas</h2>
-      <p class="intro">Escolha quanto trabalhou (ou vai trabalhar) a mais ou a menos em cada dia. Grava automaticamente.</p>
+      <p class="intro">O seu horário habitual é ${d.horario.entrada}–${d.horario.saida}, com ${horas(d.horario.pausa, { sinal: false })} de pausa.
+        Em cada dia, escolha a hora a que entrou e saiu (ou vai entrar e sair), ou quantas horas fez a mais ou a menos: até 2 horas.
+        Mudar as horas a mais ou a menos muda a hora de saída. Grava automaticamente.
+        Se sair mais tarde, sempre que possível entre mais tarde no dia seguinte.
+        Dias completos de ausência e trabalho ao fim de semana ou feriado precisam de aprovação da APJM, que os regista na folha.</p>
       <div class="semanas">${d.semanas.map((s) => semana(s, d)).join('')}</div>
     </section>
 
     <section class="band band--surface" aria-labelledby="titulo-historico">
       <h2 id="titulo-historico">Histórico</h2>
       ${tabelaHistorico(d)}
-    </section>`;
+    </section>
+    ${d.fechos.length ? tabelaFechos(d) : ''}`;
 
   app.querySelector('[data-sair]').addEventListener('click', () => {
     pinGuardado.apagar(d.id);
     navegar('/');
   });
 
-  app.querySelectorAll('select[data-dia]').forEach((select) => {
-    select.addEventListener('change', async () => {
-      const data = select.dataset.dia;
+  const seletores = () => app.querySelectorAll('.dia-campos select');
+
+  app.querySelectorAll('.dia-campos').forEach((campos) => {
+    const data = campos.dataset.dia;
+    const campo = (nome) => campos.querySelector(`[data-campo="${nome}"]`);
+    const iniciais = { entrada: campo('entrada').value, saida: campo('saida').value, desvio: campo('desvio').value };
+
+    campos.addEventListener('change', async (e) => {
       const estado = app.querySelector(`[data-estado="${data}"]`);
-      const anterior = select.querySelector('option[selected]')?.value ?? '0';
-      app.querySelectorAll('select[data-dia]').forEach((s) => (s.disabled = true));
+      estado.classList.remove('dia-estado-erro');
+      let entrada = campo('entrada').value;
+      let saida = campo('saida').value;
+      // Horas a mais ou a menos: mantém a entrada e move a saída
+      if (e.target.dataset.campo === 'desvio') {
+        saida = paraHora(paraMinutos(entrada) + d.horario.pausa + d.regras.minutosPorDia + Number(e.target.value));
+      }
+
+      seletores().forEach((s) => (s.disabled = true));
       estado.textContent = 'A guardar…';
       const minha = visita;
       try {
-        const novo = await api(`funcionarios/${d.id}/registos`, { pin, data, horas: Number(select.value) / 60 });
+        const novo = await api(`funcionarios/${d.id}/registos`, { pin, data, entrada, saida });
         if (mudouDePagina(minha)) return; // a gravação conta, mas a pessoa já saiu desta página
         const y = window.scrollY;
         mostrarFuncionario(novo, pin);
         window.scrollTo(0, y);
         app.querySelector(`[data-estado="${data}"]`).textContent = 'Guardado';
-        app.querySelector(`select[data-dia="${data}"]`)?.focus({ preventScroll: true });
+        app.querySelector(`.dia-campos[data-dia="${data}"] [data-campo="${e.target.dataset.campo}"]`)?.focus({ preventScroll: true });
       } catch (erro) {
         if (mudouDePagina(minha)) return;
-        select.value = anterior;
+        Object.entries(iniciais).forEach(([nome, valor]) => (campo(nome).value = valor));
         estado.textContent = erro.message;
         estado.classList.add('dia-estado-erro');
-        app.querySelectorAll('select[data-dia]').forEach((s) => (s.disabled = false));
+        seletores().forEach((s) => (s.disabled = false));
       }
     });
   });
