@@ -74,7 +74,12 @@ export function interpretar(tabelas) {
     }))
     .filter((f) => f.id && f.ativo);
 
-  const feriados = new Set(paraObjetos(tabelas.feriados).map((f) => lerData(f.data)).filter(Boolean));
+  // Data → nome do feriado (ex.: "2026-12-08" → "Imaculada Conceição")
+  const feriados = new Map(
+    paraObjetos(tabelas.feriados)
+      .map((f) => [lerData(f.data), String(f.descricao ?? '').trim()])
+      .filter(([data]) => data),
+  );
   const pausaDe = new Map(funcionarios.map((f) => [f.id, f.horario.pausa]));
 
   const registos = paraObjetos(tabelas.registos)

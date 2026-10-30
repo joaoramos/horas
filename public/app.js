@@ -263,7 +263,8 @@ function paginaRegras() {
       'Cada pessoa gere o seu saldo de forma autónoma e consciente, procurando mantê-lo tão perto de zero quanto possível (art. 3.º).',
       'Se sair mais tarde num dia, sempre que possível entre mais tarde no dia seguinte para compensar.',
       'Como regra, as horas positivas gozam-se em períodos de horas distribuídos ao longo do tempo, e não em dias completos.',
-      'Na app, regista até <strong>2 horas a mais ou a menos por dia útil</strong>, em intervalos de 15 minutos. Pode registar a semana passada e planear até duas semanas à frente.',
+      'Na app, regista a <strong>hora de entrada e de saída</strong> de cada dia útil, em intervalos de 15 minutos. Pode registar a semana passada e planear até duas semanas à frente.',
+      'Tirando a pausa, cada dia pode ter <strong>até 2 horas a mais ou a menos</strong> do que as 8 horas (entre 6h e 10h de trabalho).',
       'O saldo total é atualizado no fim de cada dia. As horas de hoje e dos próximos dias aparecem como planeadas.',
     ]],
     ['Gozo de horas positivas', [
@@ -359,14 +360,6 @@ function pedirPin(pessoa, mensagem = '') {
 const paraMinutos = (hora) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
 const paraHora = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-function opcoesDoDia(minutos, regras) {
-  const opcoes = [];
-  for (let m = -regras.maxMinutosPorDia; m <= regras.maxMinutosPorDia; m += regras.passoMinutos) {
-    opcoes.push(`<option value="${m}"${m === minutos ? ' selected' : ''}>${horas(m)}</option>`);
-  }
-  return opcoes.join('');
-}
-
 /** Horas do dia de 15 em 15 minutos, das 6:00 às 23:00 (e a atual, se estiver fora). */
 function opcoesDeHora(atual, regras) {
   const valores = [];
@@ -385,20 +378,23 @@ function semana(s, d) {
     const quando = dia.data < d.hoje ? 'passado' : dia.data === d.hoje ? 'hoje' : 'futuro';
     const longo = diaLongo(dia.data);
     let valor;
-    if (dia.apjm) {
+    if (dia.feriado) {
+      // Feriado: dia sem trabalho, que não se pode alterar (só a APJM pode registar trabalho na folha)
+      valor = `<span class="dia-feriado">Feriado${dia.nomeFeriado ? `<small>${esc(dia.nomeFeriado)}</small>` : ''}${
+        dia.minutos ? `<small>${horas(dia.minutos)} registadas pela APJM</small>` : ''}</span>`;
+    } else if (dia.apjm) {
       valor = `<span class="dia-apjm">${dia.registado && dia.minutos > -d.regras.minutosPorDia ? `${dia.entrada}–${dia.saida} · ` : ''}${horas(dia.minutos)}<small>APJM</small></span>`;
-    } else if (dia.feriado) valor = '<span class="dia-nota">Feriado</span>';
-    else if (dia.editavel) {
+    } else if (dia.editavel) {
       valor = `
         <span class="dia-campos" data-dia="${dia.data}">
           <select data-campo="entrada" aria-label="Entrada em ${longo}">${opcoesDeHora(dia.entrada, d.regras)}</select>
           <span aria-hidden="true">–</span>
           <select data-campo="saida" aria-label="Saída em ${longo}">${opcoesDeHora(dia.saida, d.regras)}</select>
-          <select data-campo="desvio" aria-label="Horas a mais ou a menos em ${longo}">${opcoesDoDia(dia.minutos, d.regras)}</select>
+          <span class="dia-desvio">${horas(dia.minutos)}</span>
         </span>`;
     } else valor = `<span class="dia-fixo">${dia.entrada}–${dia.saida} · ${horas(dia.minutos)}</span>`;
     return `
-      <li class="dia dia-${quando}">
+      <li class="dia dia-${quando}${dia.feriado ? ' dia-inativo' : ''}"${dia.feriado ? ' aria-disabled="true"' : ''}>
         <span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>
         ${valor}
         <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
@@ -416,13 +412,25 @@ function semana(s, d) {
 function tabelaHistorico(d) {
   if (!d.historico.length) return '<p>Ainda não há horas registadas.</p>';
   const estados = { confirmado: 'Confirmado', hoje: 'Hoje', planeado: 'Planeado' };
-  const linhas = d.historico.map((h) => `
-      <tr>
-        <td>${diaCurto(h.data)}${h.notas.length ? `<small>${esc(h.notas.join(' · '))}</small>` : ''}</td>
+  const linhas = d.historico.map((h) => {
+    const notas = h.notas.length ? `<small>${esc(h.notas.join(' · '))}</small>` : '';
+    if (h.feriado && !h.minutos) {
+      return `
+      <tr class="linha-inativa">
+        <td>${diaCurto(h.data)}${notas}</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td>Feriado${h.nomeFeriado ? `<small>${esc(h.nomeFeriado)}</small>` : ''}</td>
+      </tr>`;
+    }
+    return `
+      <tr${h.feriado ? ' class="linha-inativa"' : ''}>
+        <td>${diaCurto(h.data)}${notas}</td>
         <td class="num">${h.entrada ? `${h.entrada}–${h.saida}` : '—'}<small>${horas(h.trabalhados, { sinal: false })} trabalhadas</small></td>
         <td class="num">${horas(h.minutos)}</td>
-        <td>${estados[h.estado]}${h.apjm ? '<small>Registado pela APJM</small>' : ''}</td>
-      </tr>`).join('');
+        <td>${h.feriado ? `Feriado${h.nomeFeriado ? ` · ${esc(h.nomeFeriado)}` : ''}` : estados[h.estado]}${h.apjm ? '<small>Registado pela APJM</small>' : ''}</td>
+      </tr>`;
+  }).join('');
   return `
     <div class="tabela">
       <table>
@@ -473,8 +481,8 @@ function mostrarFuncionario(d, pin) {
     <section class="band" aria-labelledby="titulo-registar">
       <h2 id="titulo-registar">Registar horas</h2>
       <p class="intro">O seu horário habitual é ${d.horario.entrada}–${d.horario.saida}, com ${horas(d.horario.pausa, { sinal: false })} de pausa.
-        Em cada dia, escolha a hora a que entrou e saiu (ou vai entrar e sair), ou quantas horas fez a mais ou a menos: até 2 horas.
-        Mudar as horas a mais ou a menos muda a hora de saída. Grava automaticamente.
+        Em cada dia, escolha a hora a que entrou e saiu (ou vai entrar e sair). Grava automaticamente.
+        Pode fazer até 2 horas a mais ou a menos do que as 8 horas de trabalho.
         Se sair mais tarde, sempre que possível entre mais tarde no dia seguinte.
         Dias completos de ausência e trabalho ao fim de semana ou feriado precisam de aprovação da APJM, que os regista na folha.</p>
       <div class="semanas">${d.semanas.map((s) => semana(s, d)).join('')}</div>
@@ -496,17 +504,13 @@ function mostrarFuncionario(d, pin) {
   app.querySelectorAll('.dia-campos').forEach((campos) => {
     const data = campos.dataset.dia;
     const campo = (nome) => campos.querySelector(`[data-campo="${nome}"]`);
-    const iniciais = { entrada: campo('entrada').value, saida: campo('saida').value, desvio: campo('desvio').value };
+    const iniciais = { entrada: campo('entrada').value, saida: campo('saida').value };
 
     campos.addEventListener('change', async (e) => {
       const estado = app.querySelector(`[data-estado="${data}"]`);
       estado.classList.remove('dia-estado-erro');
-      let entrada = campo('entrada').value;
-      let saida = campo('saida').value;
-      // Horas a mais ou a menos: mantém a entrada e move a saída
-      if (e.target.dataset.campo === 'desvio') {
-        saida = paraHora(paraMinutos(entrada) + d.horario.pausa + d.regras.minutosPorDia + Number(e.target.value));
-      }
+      const entrada = campo('entrada').value;
+      const saida = campo('saida').value;
 
       seletores().forEach((s) => (s.disabled = true));
       estado.textContent = 'A guardar…';

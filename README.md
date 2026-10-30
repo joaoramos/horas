@@ -55,7 +55,7 @@ Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 | --- | --- | --- |
 | `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `entrada`, `saida`, `pausa` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `entrada`/`saida` são o horário habitual (ex.: `09:30` e `18:30`) e `pausa` as horas sem trabalho (ex.: `1`). |
 | `Registos` | `data`, `funcionario`, `entrada`, `saida`, `horas`, `nota`, `atualizado_em` | Uma linha por pessoa e por dia útil, com a hora de entrada e de saída. `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir do horário. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
-| `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. |
+| `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
 
 - Para **acrescentar um funcionário**, basta uma nova linha em `Funcionarios`.
 - Para **acertar o balanço** de alguém, altere `saldo_inicial` ou acrescente uma linha em `Registos`.
@@ -71,7 +71,7 @@ As regras seguem o *Regulamento interno de utilização do saldo flexível* da A
 e os valores (limites, data de início, máximo diário) em `REGRAS`, no início desse ficheiro.
 
 - Cada dia útil tem hora de entrada e de saída. O desvio é `saída − entrada − pausa − 8h` (ex.: 9:30–19:00 com 1h de pausa = +30min). Os dias até ontem estão **confirmados** e contam para o saldo total. Hoje e os dias seguintes estão **planeados**.
-- **Na app**, cada pessoa escolhe a entrada e a saída de cada dia útil, em intervalos de 15 minutos, ou as horas a mais ou a menos (isso move a hora de saída). O desvio tem de ficar entre −2h e +2h. Pode registar a semana anterior e planear as duas seguintes.
+- **Na app**, cada pessoa escolhe a hora de entrada e de saída de cada dia útil, em intervalos de 15 minutos. O desvio é calculado e tem de ficar entre −2h e +2h. Pode registar a semana anterior e planear as duas seguintes.
 - **Todos os dias úteis ficam na folha:** todas as noites (02:00 UTC), um Cron Trigger do Worker acrescenta o horário habitual nos dias úteis já terminados sem registo, desde 1 de novembro de 2026. Se uma noite falhar, a seguinte recupera os dias em falta (até 31 dias para trás).
 - **Na folha**, a APJM regista o que precisa de aprovação (art. 5.º): dias completos de ausência (`horas` = `-8`, sem entrada nem saída) e trabalho ao fim de semana ou feriado (`horas` = `8`, ou a entrada e a saída). Esse registo é a aprovação. Estes dias aparecem na app como "Registado pela APJM" e não podem ser alterados lá.
 - **Limites (art. 2.º):** no fecho de cada mês, o saldo com limites fica entre −30h e +50h. Acima de +50h, as horas a mais perdem-se. Abaixo de −30h, as horas abaixo do limite são descontadas no salário desse mês. O fecho acontece quando termina o último dia do mês. A app guarda o resultado de cada fecho e mostra-o à pessoa e na lista da equipa.

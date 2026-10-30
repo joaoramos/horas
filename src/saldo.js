@@ -17,7 +17,7 @@
 //   Acima de +50h as horas a mais perdem-se; abaixo de −30h as horas a mais são descontadas
 //   no salário desse mês.
 
-import { ehDataValida, ehDiaUtil, fimDoMes, formatarHora, lerHora, somarDias, segundaDeReferencia } from './datas.js';
+import { diaDaSemana, ehDataValida, ehDiaUtil, fimDoMes, formatarHora, lerHora, somarDias, segundaDeReferencia } from './datas.js';
 
 export const REGRAS = {
   minutosPorDia: 8 * 60,
@@ -40,6 +40,10 @@ export class ErroPublico extends Error {
 }
 
 const sinal = (n) => Math.sign(n);
+
+// `feriados` é um Map data → nome (vindo da folha) ou um Set de datas
+const nomeDoFeriado = (feriados, data) => (feriados instanceof Map ? feriados.get(data) : '') || '';
+const ehFimDeSemana = (data) => diaDaSemana(data) === 0 || diaDaSemana(data) === 6;
 
 /** Desvio de um dia útil face às 8 horas, a partir da entrada, da saída e da pausa (tudo em minutos). */
 export function desvioDoHorario(entrada, saida, pausa) {
@@ -190,7 +194,10 @@ export function validarRegisto({ data, entrada, saida }, hoje, feriados, { minut
 
   const minutos = desvioDoHorario(e, s, pausa);
   if (Math.abs(minutos) > REGRAS.maxMinutosPorDia) {
-    throw new ErroPublico('Na app só pode registar até 2 horas a mais ou a menos por dia. Dias completos de ausência precisam de aprovação da APJM.');
+    const duracao = (m) => (m % 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m / 60}h`);
+    const minimo = duracao(REGRAS.minutosPorDia - REGRAS.maxMinutosPorDia + pausa);
+    const maximo = duracao(REGRAS.minutosPorDia + REGRAS.maxMinutosPorDia + pausa);
+    throw new ErroPublico(`Entre a entrada e a saída tem de haver entre ${minimo} e ${maximo}, com a pausa. Dias completos de ausência precisam de aprovação da APJM.`);
   }
   return { minutos, entrada: formatarHora(e), saida: formatarHora(s) };
 }
@@ -215,6 +222,7 @@ export function semanasEditaveis(saldo, feriados, horario) {
         saida: formatarHora(registo?.saida ?? horario.saida),
         registado: Boolean(registo),
         feriado: feriados.has(data),
+        nomeFeriado: nomeDoFeriado(feriados, data),
         apjm,
         editavel: ehEditavel(data, hoje, feriados) && !apjm,
       });
@@ -224,22 +232,39 @@ export function semanasEditaveis(saldo, feriados, horario) {
   return semanas;
 }
 
+/**
+ * Histórico dos dias de semana, do primeiro registo até hoje (ou ao último dia planeado).
+ * Os feriados aparecem sempre, como dias sem trabalho; os fins de semana nunca aparecem,
+ * mas continuam a contar para o saldo.
+ */
 export function historico(saldo, feriados) {
-  return saldo.dias
-    .map((d) => {
-      const util = ehDiaUtil(d.data, feriados);
-      return {
-        data: d.data,
-        minutos: d.minutos,
-        // Num dia útil o desvio é face às 8h; ao fim de semana ou feriado, são as horas trabalhadas
-        trabalhados: util ? REGRAS.minutosPorDia + d.minutos : Math.max(0, d.minutos),
-        entrada: d.entrada === null ? null : formatarHora(d.entrada),
-        saida: d.saida === null ? null : formatarHora(d.saida),
-        estado: d.data < saldo.hoje ? 'confirmado' : d.data === saldo.hoje ? 'hoje' : 'planeado',
-        apjm: registadoPelaApjm(d.data, d.minutos, feriados),
-        notas: d.notas,
-      };
-    })
-    .reverse();
+  const linha = (d) => {
+    const feriado = feriados.has(d.data);
+    return {
+      data: d.data,
+      minutos: d.minutos,
+      // Num dia útil o desvio é face às 8h; num feriado, são as horas trabalhadas
+      trabalhados: feriado ? Math.max(0, d.minutos) : REGRAS.minutosPorDia + d.minutos,
+      entrada: d.entrada === null ? null : formatarHora(d.entrada),
+      saida: d.saida === null ? null : formatarHora(d.saida),
+      estado: d.data < saldo.hoje ? 'confirmado' : d.data === saldo.hoje ? 'hoje' : 'planeado',
+      apjm: registadoPelaApjm(d.data, d.minutos, feriados),
+      feriado,
+      nomeFeriado: nomeDoFeriado(feriados, d.data),
+      notas: d.notas,
+    };
+  };
+
+  const dias = saldo.dias.filter((d) => !ehFimDeSemana(d.data));
+  const registados = new Set(dias.map((d) => d.data));
+  const inicio = dias[0]?.data ?? saldo.hoje;
+  const fim = [saldo.hoje, ...dias.map((d) => d.data)].sort().at(-1);
+  const feriadosSemRegisto = [...feriados.keys()]
+    .filter((data) => data >= inicio && data <= fim && !ehFimDeSemana(data) && !registados.has(data))
+    .map((data) => ({ data, minutos: 0, entrada: null, saida: null, notas: [] }));
+
+  return [...dias, ...feriadosSemRegisto]
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .map(linha);
 }
 

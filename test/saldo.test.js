@@ -103,7 +103,8 @@ test('validação dos registos', () => {
   const v = (data, entrada, saida, extra) => validarRegisto({ data, entrada, saida }, hoje, f, extra);
   assert.deepEqual(v('2026-10-21', '9:30', '19:45'), { minutos: 75, entrada: '09:30', saida: '19:45' });
   assert.deepEqual(v('2026-10-21', '10:30', '17:30'), { minutos: -120, entrada: '10:30', saida: '17:30' });
-  assert.throws(() => v('2026-10-21', '09:30', '20:45'), /até 2 horas/);
+  assert.throws(() => v('2026-10-21', '09:30', '20:45'), /entre 7h e 11h/);
+  assert.throws(() => v('2026-10-21', '11:00', '17:45'), /entre 7h e 11h/);
   assert.throws(() => v('2026-10-21', '09:30', '18:40'), /15 minutos/);
   assert.throws(() => v('2026-10-21', '18:30', '09:30'), /depois da entrada/);
   assert.throws(() => v('2026-10-21', '', '18:30'), /entrada e de saída/);
@@ -130,14 +131,36 @@ test('semanas para registar: a anterior, a corrente e as duas seguintes', () => 
   assert.deepEqual([semanas[1].dias[2].entrada, semanas[1].dias[2].saida, semanas[1].dias[2].registado], ['09:30', '18:30', false]);
 });
 
-test('histórico distingue os dias registados pela APJM', () => {
-  const s = saldo([r('2026-10-17', 4 * H), r('2026-10-19', -8 * H), r('2026-10-21', -30)], '2026-10-21');
-  const h = historico(s, new Set());
+test('histórico: os feriados aparecem sempre, como dias sem trabalho', () => {
+  const s = saldo([r('2026-12-02', 30), r('2026-12-10', -30)], '2026-12-09');
+  const feriados = new Map([['2026-12-01', 'Restauração da Independência'], ['2026-12-08', 'Imaculada Conceição'], ['2026-12-25', 'Natal']]);
+  const h = historico(s, feriados);
+  // 1/12 é antes do primeiro registo e 25/12 depois do último: não aparecem
+  assert.deepEqual(h.map((x) => [x.data, x.feriado, x.nomeFeriado, x.trabalhados]), [
+    ['2026-12-10', false, '', 450],
+    ['2026-12-08', true, 'Imaculada Conceição', 0],
+    ['2026-12-02', false, '', 510],
+  ]);
+});
+
+test('semanas para registar: feriados com nome e não editáveis', () => {
+  const s = saldo([], '2026-12-07');
+  const dia = semanasEditaveis(s, new Map([['2026-12-08', 'Imaculada Conceição']]), HORARIO_VERA)[1].dias[1];
+  assert.deepEqual([dia.data, dia.feriado, dia.nomeFeriado, dia.editavel], ['2026-12-08', true, 'Imaculada Conceição', false]);
+});
+
+test('histórico: sem fins de semana, e com os dias registados pela APJM assinalados', () => {
+  const registos = [r('2026-10-17', 4 * H), r('2026-10-19', -8 * H), r('2026-10-20', 3 * H), r('2026-10-21', -30)];
+  const s = saldo(registos, '2026-10-21');
+  // terça, 20/10 é feriado; sábado, 17/10 não aparece
+  const h = historico(s, new Set(['2026-10-20']));
   assert.deepEqual(h.map((x) => [x.data, x.estado, x.trabalhados, x.apjm]), [
     ['2026-10-21', 'hoje', 450, false],
+    ['2026-10-20', 'confirmado', 180, true], // feriado: 3h trabalhadas
     ['2026-10-19', 'confirmado', 0, true],   // dia completo de ausência
-    ['2026-10-17', 'confirmado', 240, true], // sábado: 4h trabalhadas
   ]);
+  // O sábado continua a contar para o saldo
+  assert.equal(s.saldoTotal, 4 * H - 8 * H + 3 * H);
 });
 
 test('semanas para registar: dias da APJM não são editáveis', () => {
@@ -173,7 +196,7 @@ test('interpretar a folha aceita cabeçalhos escritos de outra forma', () => {
   });
   assert.deepEqual(dados.funcionarios, [{ id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, ativo: true, horario: { entrada: 540, saida: 1080, pausa: 60 } }]);
   assert.deepEqual(dados.registos, [{ data: '2026-10-21', funcionario: 'mariana', minutos: 90, entrada: null, saida: null, nota: '' }]);
-  assert.deepEqual([...dados.feriados], ['2026-12-08']);
+  assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
 });
 
 test('interpretar: o desvio vem do horário; sem horário, da coluna horas', () => {
