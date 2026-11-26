@@ -2,10 +2,12 @@
 // O Apps Script devolve cada separador como uma tabela (linha de cabeçalho + linhas).
 
 import { ehDataValida, ehDiaUtil, lerHora, somarDias, hojeEmLisboa, segundaDeReferencia } from './datas.js';
-import { desvioDoHorario } from './saldo.js';
+import { desvioDoHorario, desvioDosBlocos, minutosTrabalhados } from './saldo.js';
 
-// Horário habitual quando a folha não indica outro
-const HORARIO_POR_OMISSAO = { entrada: '9:00', saida: '18:00', pausa: 1 };
+// Horário habitual quando a folha não indica outro: 9:00–13:00 e 14:00–18:00
+const HORARIO_POR_OMISSAO = { manha: { entrada: 9 * 60, saida: 13 * 60 }, tarde: { entrada: 14 * 60, saida: 18 * 60 } };
+// Pausa dos registos antigos, de antes dos dois blocos (coluna "pausa", em horas)
+const PAUSA_ANTIGA_POR_OMISSAO = 60;
 
 const CHAVE_CACHE = 'https://cache.horas.internal/dados';
 const SEGUNDOS_EM_CACHE = 30;
@@ -66,6 +68,39 @@ export function slug(texto) {
   return normalizarCabecalho(texto).replace(/_/g, '-');
 }
 
+/** Um bloco de trabalho a partir de duas colunas de horas. Sem as duas horas (ou com a saída antes da entrada), não há bloco. */
+function lerBloco(entrada, saida) {
+  const e = lerHora(entrada);
+  const s = lerHora(saida);
+  return e !== null && s !== null && s > e ? { entrada: e, saida: s } : null;
+}
+
+const vazio = (v) => String(v ?? '').trim() === '';
+
+/**
+ * Horário habitual de um funcionário: os blocos da manhã e da tarde.
+ * Numa folha antiga, só com `entrada`, `saida` e `pausa`, a pausa fica às 13:00.
+ */
+function lerHorario(f) {
+  const colunasNovas = ['entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde'];
+  if (colunasNovas.some((c) => !vazio(f[c]))) {
+    return { manha: lerBloco(f.entrada_manha, f.saida_manha), tarde: lerBloco(f.entrada_tarde, f.saida_tarde) };
+  }
+  const antigo = lerBloco(f.entrada, f.saida);
+  const pausa = vazio(f.pausa) ? PAUSA_ANTIGA_POR_OMISSAO : lerHoras(f.pausa) ?? PAUSA_ANTIGA_POR_OMISSAO;
+  const almoco = 13 * 60;
+  if (antigo && antigo.entrada < almoco && antigo.saida > almoco + pausa) {
+    return { manha: { entrada: antigo.entrada, saida: almoco }, tarde: { entrada: almoco + pausa, saida: antigo.saida } };
+  }
+  return HORARIO_POR_OMISSAO;
+}
+
+/** "férias", "folga" ou "greve" (coluna "tipo"); outro valor conta como dia normal. */
+function lerTipo(valor) {
+  const tipo = normalizarCabecalho(valor ?? '');
+  return ['ferias', 'folga', 'greve'].includes(tipo) ? tipo : '';
+}
+
 export function interpretar(tabelas) {
   const funcionarios = paraObjetos(tabelas.funcionarios)
     .map((f) => ({
@@ -76,11 +111,9 @@ export function interpretar(tabelas) {
       // Dias de férias do ano corrente (vazio = ainda não indicado pela APJM)
       diasFerias: lerDias(f.dias_ferias),
       ativo: lerAtivo(f.ativo),
-      horario: {
-        entrada: lerHora(f.entrada) ?? lerHora(HORARIO_POR_OMISSAO.entrada),
-        saida: lerHora(f.saida) ?? lerHora(HORARIO_POR_OMISSAO.saida),
-        pausa: String(f.pausa ?? '').trim() === '' ? HORARIO_POR_OMISSAO.pausa * 60 : lerHoras(f.pausa) ?? 60,
-      },
+      horario: lerHorario(f),
+      // Só para os registos antigos, com entrada, saída e pausa
+      pausa: vazio(f.pausa) ? PAUSA_ANTIGA_POR_OMISSAO : lerHoras(f.pausa) ?? PAUSA_ANTIGA_POR_OMISSAO,
     }))
     .filter((f) => f.id && f.ativo);
 
@@ -90,34 +123,50 @@ export function interpretar(tabelas) {
       .map((f) => [lerData(f.data), String(f.descricao ?? '').trim()])
       .filter(([data]) => data),
   );
-  const pausaDe = new Map(funcionarios.map((f) => [f.id, f.horario.pausa]));
+  const pausaDe = new Map(funcionarios.map((f) => [f.id, f.pausa]));
 
   const registos = paraObjetos(tabelas.registos)
     .map((r) => {
       const data = lerData(r.data);
       const funcionario = slug(r.funcionario);
+      const tipo = lerTipo(r.tipo);
+      const ferias = tipo === 'ferias';
+      const diaTirado = tipo === 'folga' || tipo === 'greve' ? tipo : null;
+      const manha = lerBloco(r.entrada_manha, r.saida_manha);
+      const tarde = lerBloco(r.entrada_tarde, r.saida_tarde);
+      const comBlocos = Boolean(manha || tarde);
+      const ajuste = vazio(r.ajuste) ? 0 : lerHoras(r.ajuste) ?? 0;
+      // Registos antigos, de antes dos dois blocos: uma entrada e uma saída, com a pausa da pessoa
       const entrada = lerHora(r.entrada);
       const saida = lerHora(r.saida);
-      const comHorario = entrada !== null && saida !== null && saida > entrada;
-      const horas = String(r.horas ?? '').trim() === '' ? null : lerHoras(r.horas);
-      // Coluna "tipo": "férias" marca o dia como férias dessa pessoa (não conta para o saldo)
-      const ferias = normalizarCabecalho(r.tipo ?? '') === 'ferias';
+      const comHorarioAntigo = !comBlocos && entrada !== null && saida !== null && saida > entrada;
+      const horas = vazio(r.horas) ? null : lerHoras(r.horas);
+      const diaUtil = data && ehDiaUtil(data, feriados);
       let minutos;
-      // Num dia útil com entrada e saída, o desvio vem do horário; senão, da coluna "horas"
-      // (ex.: dias completos de ausência registados pela APJM, ou registos antigos sem horário).
+      // Num dia útil com blocos, o desvio vem dos blocos e do ajuste; senão, da coluna "horas"
+      // (ex.: ausências registadas pela APJM, ou registos antigos sem horário).
       if (ferias) minutos = 0;
-      else if (comHorario && data && ehDiaUtil(data, feriados)) minutos = desvioDoHorario(entrada, saida, pausaDe.get(funcionario) ?? 60);
+      else if (diaTirado) minutos = -8 * 60;
+      else if (comBlocos && diaUtil) minutos = desvioDosBlocos(manha, tarde, ajuste);
+      else if (comHorarioAntigo && diaUtil) minutos = desvioDoHorario(entrada, saida, pausaDe.get(funcionario) ?? PAUSA_ANTIGA_POR_OMISSAO);
       else if (horas !== null) minutos = horas;
-      else if (comHorario) minutos = saida - entrada; // fim de semana ou feriado: horas trabalhadas
+      else if (comBlocos) minutos = minutosTrabalhados(manha, tarde, ajuste); // fim de semana ou feriado: horas trabalhadas
+      else if (comHorarioAntigo) minutos = saida - entrada;
       else minutos = null;
+      const semHorario = ferias || diaTirado;
       return {
         data,
         funcionario,
         minutos,
-        entrada: comHorario && !ferias ? entrada : null,
-        saida: comHorario && !ferias ? saida : null,
+        manha: semHorario ? null : manha,
+        tarde: semHorario ? null : tarde,
+        ajuste: semHorario || !comBlocos ? 0 : ajuste,
+        entrada: comHorarioAntigo && !semHorario ? entrada : null,
+        saida: comHorarioAntigo && !semHorario ? saida : null,
         ferias,
+        diaTirado,
         nota: String(r.nota ?? '').trim(),
+        observacao: String(r.observacao ?? '').trim(),
       };
     })
     .filter((r) => r.data && r.funcionario && r.minutos !== null);
@@ -164,9 +213,26 @@ function guardarEmCache(tabelas) {
   );
 }
 
-/** Grava a entrada, a saída e o desvio de um dia (substitui o que existir). Devolve os dados atualizados. */
-export async function gravarRegisto(env, ctx, { funcionario, data, entrada, saida, minutos }) {
-  const linha = { funcionario, data, entrada, saida, horas: minutos / 60 };
+/** Uma linha de "Registos" no formato que o Apps Script grava (horas em horas, blocos em "HH:MM"). */
+export function linhaParaFolha({ funcionario, data, manha, tarde, ajuste = 0, minutos, observacao, tipo = '' }) {
+  const linha = {
+    funcionario,
+    data,
+    entrada_manha: manha?.entrada ?? '',
+    saida_manha: manha?.saida ?? '',
+    entrada_tarde: tarde?.entrada ?? '',
+    saida_tarde: tarde?.saida ?? '',
+    ajuste: ajuste / 60,
+    horas: minutos / 60,
+    tipo,
+  };
+  if (observacao !== undefined) linha.observacao = observacao;
+  return linha;
+}
+
+/** Grava os blocos, o ajuste, a observação e o desvio de um dia (substitui o que existir). Devolve os dados atualizados. */
+export async function gravarRegisto(env, ctx, registo) {
+  const linha = linhaParaFolha(registo);
   if (env.DEMO === '1') {
     demo.gravar(linha);
     return interpretar(demo.tabelas());
@@ -204,15 +270,20 @@ export async function carregarDadosAtuais(env) {
 // Criados no primeiro pedido: nos Workers, a hora no âmbito global é sempre 1970.
 const demo = (() => {
   let registos;
-  const linha = (data, funcionario, horas, nota = '', entrada = '', saida = '') => ({ data, funcionario, entrada, saida, horas, nota });
+  const linha = (data, funcionario, horas, nota = '', manha = '', tarde = '', extra = {}) => {
+    const [entrada_manha = '', saida_manha = ''] = manha.split('-');
+    const [entrada_tarde = '', saida_tarde = ''] = tarde.split('-');
+    return { data, funcionario, entrada_manha, saida_manha, entrada_tarde, saida_tarde, horas, nota, ...extra };
+  };
   const iniciar = () => {
     const segunda = segundaDeReferencia(hojeEmLisboa());
     registos ??= [
-      linha(somarDias(segunda, -7), 'mariana', -2, '', '09:00', '16:00'),
-      linha(somarDias(segunda, -6), 'mariana', -1.5, '', '09:00', '16:30'),
-      linha(somarDias(segunda, -4), 'vera', 1, '', '09:30', '19:30'),
-      linha(somarDias(segunda, -3), 'vera', -0.5, '', '10:00', '18:30'),
-      linha(somarDias(segunda, 1), 'vera', 2, '', '09:30', '20:30'),
+      linha(somarDias(segunda, -7), 'mariana', -2, '', '10:00-14:00', '15:00-17:00'),
+      linha(somarDias(segunda, -6), 'mariana', -1.5, '', '10:00-14:00', '15:00-17:30', { observacao: 'Consulta médica ao fim da tarde.' }),
+      linha(somarDias(segunda, -4), 'vera', 1, '', '09:30-14:00', '15:00-19:30'),
+      linha(somarDias(segunda, -3), 'vera', -0.5, '', '10:00-14:00', '15:00-18:30'),
+      linha(somarDias(segunda, -5), 'vera', -8, '', '', '', { tipo: 'greve', observacao: 'Greve geral.' }),
+      linha(somarDias(segunda, 1), 'vera', 2.25, '', '09:30-14:00', '15:00-20:30', { ajuste: 0.25, observacao: 'Reunião de pais depois do fecho.' }),
       // Novembro de 2026, já com limites: a Vera passa os +50h (dias completos registados pela APJM)
       linha('2026-11-07', 'vera', 8, 'Sábado: festa de outono'),
       linha('2026-11-14', 'vera', 8, 'Sábado: formação'),
@@ -220,25 +291,25 @@ const demo = (() => {
       linha('2026-11-22', 'vera', 8, 'Domingo: feira'),
       linha('2026-11-28', 'vera', 8, 'Sábado: limpezas'),
       linha('2026-11-29', 'vera', 8, 'Domingo: limpezas'),
-      linha('2026-11-30', 'vera', 6, 'Reunião de pais', '08:00', '23:00'),
+      linha('2026-11-30', 'vera', 6, 'Reunião de pais', '08:00-14:00', '15:00-23:00'),
       linha('2026-12-01', 'vera', -8, 'Dia completo aprovado pela APJM'),
-      linha('2026-11-02', 'mariana', -2, '', '09:00', '16:00'),
-      linha('2026-11-03', 'mariana', 2, '', '08:00', '19:00'),
+      linha('2026-11-02', 'mariana', -2, '', '10:00-14:00', '15:00-17:00'),
+      linha('2026-11-03', 'mariana', 2, '', '09:00-14:00', '15:00-20:00'),
       // Férias da Mariana (coluna "tipo")
-      { ...linha('2026-11-11', 'mariana', '', 'Férias de outono'), tipo: 'Férias' },
-      { ...linha('2026-11-12', 'mariana', '', 'Férias de outono'), tipo: 'Férias' },
+      linha('2026-11-11', 'mariana', '', 'Férias de outono', '', '', { tipo: 'Férias' }),
+      linha('2026-11-12', 'mariana', '', 'Férias de outono', '', '', { tipo: 'Férias' }),
     ];
     return registos;
   };
-  const colunas = ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'tipo'];
+  const colunas = ['data', 'funcionario', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'ajuste', 'horas', 'nota', 'tipo', 'observacao'];
   return {
     tabelas: () => ({
       funcionarios: [
-        ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias'],
-        ['mariana', 'Mariana', '1234', 70, 'sim', '9:00', '18:00', 1, 22],
-        ['vera', 'Vera', '5678', 0, 'sim', '9:30', '18:30', 1, ''],
+        ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'dias_ferias'],
+        ['mariana', 'Mariana', '1234', 70, 'sim', '10:00', '14:00', '15:00', '19:00', 22],
+        ['vera', 'Vera', '5678', 0, 'sim', '09:30', '14:00', '15:00', '18:30', ''],
       ],
-      registos: [colunas, ...iniciar().map((r) => colunas.map((c) => r[c]))],
+      registos: [colunas, ...iniciar().map((r) => colunas.map((c) => r[c] ?? ''))],
       feriados: [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']],
     }),
     gravar(nova) {

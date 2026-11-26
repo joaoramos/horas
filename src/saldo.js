@@ -1,13 +1,16 @@
 // Regras de cálculo do saldo flexível, segundo o "Regulamento interno de utilização do saldo flexível"
 // da APJM. Tudo em minutos para evitar erros de arredondamento.
 //
-// Cada dia útil tem uma hora de entrada e de saída. O desvio é o tempo entre as duas, menos a pausa
-// (1h, sem trabalho) e menos as 8 horas do horário: ex.: 9:30–19:00 com 1h de pausa = +30min.
-// - Nos dias úteis, cada pessoa regista na app a entrada e a saída, com um desvio até ±2h por dia.
+// Cada dia útil tem dois blocos de trabalho: o da manhã e o da tarde (ex.: 9:30–14:00 e 15:00–18:30).
+// A pausa é o intervalo entre os dois. O desvio é a soma dos dois blocos, mais o ajuste extraordinário,
+// menos as 8 horas do horário: ex.: 9:30–14:00 e 15:00–19:00 = 8h30, ou seja, +30min.
+// - Nos dias úteis, cada pessoa regista na app os dois blocos e, se for preciso, um ajuste
+//   extraordinário (em intervalos de 15 minutos), com um desvio até ±7h por dia.
+// - Também pode "tirar o dia" (folga ou greve, com aprovação prévia do executivo): o dia conta −8h.
 // - Todos os dias úteis ficam registados na folha: os que ninguém alterou são preenchidos todas
 //   as noites com o horário habitual (ver preencherDias em index.js).
-// - Dias completos de ausência (art. 5.º) e trabalho ao fim de semana ou feriado são registados
-//   pela APJM diretamente na folha; esse registo é a aprovação.
+// - Trabalho ao fim de semana ou feriado e outras ausências são registados pela APJM diretamente
+//   na folha; esse registo é a aprovação.
 //
 // O saldo tem duas partes:
 // - Saldo transitado: o saldo inicial da folha mais tudo o que foi registado antes de
@@ -21,8 +24,9 @@ import { diaDaSemana, ehDataValida, ehDiaUtil, fimDoMes, formatarHora, lerHora, 
 
 export const REGRAS = {
   minutosPorDia: 8 * 60,
-  maxMinutosPorDia: 2 * 60,
+  maxMinutosPorDia: 7 * 60,
   passoMinutos: 15,
+  maxCaracteresObservacao: 300,
   semanasAnterioresEditaveis: 1,
   semanasFuturasEditaveis: 2,
   inicioLimites: '2026-11-01',
@@ -45,27 +49,55 @@ const sinal = (n) => Math.sign(n);
 const nomeDoFeriado = (feriados, data) => (feriados instanceof Map ? feriados.get(data) : '') || '';
 const ehFimDeSemana = (data) => diaDaSemana(data) === 0 || diaDaSemana(data) === 6;
 
-/** Desvio de um dia útil face às 8 horas, a partir da entrada, da saída e da pausa (tudo em minutos). */
+/** Desvio de um dia útil face às 8 horas, num registo antigo com entrada, saída e pausa (tudo em minutos). */
 export function desvioDoHorario(entrada, saida, pausa) {
   return saida - entrada - pausa - REGRAS.minutosPorDia;
 }
 
+/** Minutos de trabalho de um bloco ({ entrada, saida } em minutos), ou 0 se não houver bloco. */
+export const duracaoDoBloco = (bloco) => (bloco ? bloco.saida - bloco.entrada : 0);
+
+/** Minutos trabalhados num dia com os blocos da manhã e da tarde, mais o ajuste extraordinário. */
+export function minutosTrabalhados(manha, tarde, ajuste = 0) {
+  return duracaoDoBloco(manha) + duracaoDoBloco(tarde) + ajuste;
+}
+
+/** Desvio de um dia útil face às 8 horas, a partir dos dois blocos e do ajuste extraordinário. */
+export function desvioDosBlocos(manha, tarde, ajuste = 0) {
+  return minutosTrabalhados(manha, tarde, ajuste) - REGRAS.minutosPorDia;
+}
+
+const MOTIVOS_DIA_TIRADO = ['folga', 'greve'];
+
 function agruparPorDia(registos) {
   const dias = new Map();
   for (const r of registos) {
-    const dia = dias.get(r.data) ?? { data: r.data, minutos: 0, entrada: null, saida: null, ferias: false, notas: [] };
+    const dia = dias.get(r.data) ?? {
+      data: r.data, minutos: 0, manha: null, tarde: null, ajuste: 0, entrada: null, saida: null,
+      ferias: false, diaTirado: null, notas: [], observacao: '',
+    };
     dia.minutos += r.minutos;
     if (r.ferias) dia.ferias = true;
+    if (r.diaTirado && !dia.diaTirado) dia.diaTirado = r.diaTirado;
+    if (!dia.manha && !dia.tarde && (r.manha || r.tarde)) {
+      dia.manha = r.manha ?? null;
+      dia.tarde = r.tarde ?? null;
+      dia.ajuste = r.ajuste ?? 0;
+    }
     if (dia.entrada === null && r.entrada != null) {
       dia.entrada = r.entrada;
       dia.saida = r.saida;
     }
     if (r.nota) dia.notas.push(r.nota);
+    if (r.observacao && !dia.observacao) dia.observacao = r.observacao;
     dias.set(r.data, dia);
   }
-  // Um dia de férias não conta para o saldo, mesmo que haja outras linhas nesse dia
+  const semHorario = { manha: null, tarde: null, ajuste: 0, entrada: null, saida: null };
   for (const dia of dias.values()) {
-    if (dia.ferias) Object.assign(dia, { minutos: 0, entrada: null, saida: null });
+    // Um dia de férias não conta para o saldo, mesmo que haja outras linhas nesse dia
+    if (dia.ferias) Object.assign(dia, { minutos: 0, diaTirado: null }, semHorario);
+    // Um dia tirado (folga ou greve) conta sempre −8h, mesmo que haja outras linhas nesse dia
+    else if (dia.diaTirado) Object.assign(dia, { minutos: -REGRAS.minutosPorDia }, semHorario);
   }
   return [...dias.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
@@ -173,39 +205,88 @@ export function ehEditavel(data, hoje, feriados) {
   return ehDiaUtil(data, feriados) && data >= primeiroDiaEditavel(hoje) && data <= ultimoDiaEditavel(hoje);
 }
 
-/** Dias que só a APJM pode registar: fins de semana, feriados e desvios acima de 2h (art. 5.º). */
-export function registadoPelaApjm(data, minutos, feriados) {
+/** Dias que só a APJM pode registar: fins de semana, feriados e desvios acima de 7h (art. 5.º). */
+export function registadoPelaApjm(data, minutos, feriados, diaTirado = null) {
+  if (diaTirado) return false;
   return !ehDiaUtil(data, feriados) || Math.abs(minutos) > REGRAS.maxMinutosPorDia;
 }
 
-/** Valida um pedido de registo (data, entrada e saída) e devolve o registo normalizado. */
-export function validarRegisto({ data, entrada, saida }, hoje, feriados, { minutosAtuais = 0, pausa = 60, ferias = false } = {}) {
+const duracao = (m) => (m % 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m / 60}h`);
+
+/** Lê um bloco { entrada, saida } vindo da app. Sem horas, não há bloco (null). */
+function lerBloco(bloco, nome) {
+  const e = lerHora(bloco?.entrada);
+  const s = lerHora(bloco?.saida);
+  const vazio = (v) => String(v ?? '').trim() === '';
+  if (vazio(bloco?.entrada) && vazio(bloco?.saida)) return null;
+  if (e === null || s === null) throw new ErroPublico(`Indique a hora de entrada e de saída ${nome}.`);
+  if (e % REGRAS.passoMinutos || s % REGRAS.passoMinutos) {
+    throw new ErroPublico(`As horas têm de ser múltiplos de ${REGRAS.passoMinutos} minutos.`);
+  }
+  if (s <= e) throw new ErroPublico(`A saída ${nome} tem de ser depois da entrada.`);
+  return { entrada: e, saida: s };
+}
+
+/** Lê o ajuste extraordinário (em minutos, de 15 em 15). */
+function lerAjuste(valor) {
+  if (valor === undefined || valor === null || valor === '') return 0;
+  const ajuste = Number(valor);
+  if (!Number.isInteger(ajuste) || ajuste % REGRAS.passoMinutos) {
+    throw new ErroPublico(`O ajuste extraordinário tem de ser em intervalos de ${REGRAS.passoMinutos} minutos.`);
+  }
+  if (Math.abs(ajuste) > REGRAS.maxMinutosPorDia) {
+    throw new ErroPublico(`O ajuste extraordinário vai até ${duracao(REGRAS.maxMinutosPorDia)} a mais ou a menos.`);
+  }
+  return ajuste;
+}
+
+function lerObservacao(valor) {
+  const texto = String(valor ?? '').trim();
+  if (texto.length > REGRAS.maxCaracteresObservacao) {
+    throw new ErroPublico(`A observação pode ter até ${REGRAS.maxCaracteresObservacao} caracteres.`);
+  }
+  return texto;
+}
+
+const blocoEmTexto = (bloco) => (bloco ? { entrada: formatarHora(bloco.entrada), saida: formatarHora(bloco.saida) } : null);
+
+/**
+ * Valida um pedido de registo e devolve o registo normalizado. O pedido é um de dois:
+ * - um dia normal: { data, manha: { entrada, saida }, tarde: { entrada, saida }, ajuste, observacao }
+ *   (um bloco sem horas fica vazio; o ajuste é em minutos);
+ * - tirar o dia: { data, tirarDia: 'folga' | 'greve', observacao }, que conta −8h.
+ */
+export function validarRegisto(pedido, hoje, feriados, { minutosAtuais = 0, ferias = false, diaTirado = null } = {}) {
+  const { data } = pedido;
   if (!ehDataValida(data)) throw new ErroPublico('Data inválida.');
   if (!ehDiaUtil(data, feriados)) {
     throw new ErroPublico('Fins de semana e feriados só podem ser registados pela APJM.');
   }
   if (!ehEditavel(data, hoje, feriados)) throw new ErroPublico('Este dia já não pode ser alterado.');
   if (ferias) throw new ErroPublico('Este dia está marcado como férias e só pode ser alterado na folha.');
-  if (registadoPelaApjm(data, minutosAtuais, feriados)) {
+  if (registadoPelaApjm(data, minutosAtuais, feriados, diaTirado)) {
     throw new ErroPublico('Este dia foi registado pela APJM e só pode ser alterado na folha.');
   }
+  const observacao = lerObservacao(pedido.observacao);
 
-  const e = lerHora(entrada);
-  const s = lerHora(saida);
-  if (e === null || s === null) throw new ErroPublico('Indique a hora de entrada e de saída.');
-  if (e % REGRAS.passoMinutos || s % REGRAS.passoMinutos) {
-    throw new ErroPublico(`As horas têm de ser múltiplos de ${REGRAS.passoMinutos} minutos.`);
+  if (pedido.tirarDia !== undefined && pedido.tirarDia !== null && pedido.tirarDia !== '') {
+    if (!MOTIVOS_DIA_TIRADO.includes(pedido.tirarDia)) throw new ErroPublico('Indique se o dia é de folga ou de greve.');
+    return { minutos: -REGRAS.minutosPorDia, manha: null, tarde: null, ajuste: 0, observacao, tipo: pedido.tirarDia };
   }
-  if (s - e <= pausa) throw new ErroPublico('A saída tem de ser depois da entrada (e da pausa).');
 
-  const minutos = desvioDoHorario(e, s, pausa);
+  const manha = lerBloco(pedido.manha, 'da manhã');
+  const tarde = lerBloco(pedido.tarde, 'da tarde');
+  if (manha && tarde && tarde.entrada < manha.saida) {
+    throw new ErroPublico('O bloco da tarde tem de começar depois de acabar o da manhã.');
+  }
+  const ajuste = lerAjuste(pedido.ajuste);
+  const minutos = desvioDosBlocos(manha, tarde, ajuste);
   if (Math.abs(minutos) > REGRAS.maxMinutosPorDia) {
-    const duracao = (m) => (m % 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m / 60}h`);
-    const minimo = duracao(REGRAS.minutosPorDia - REGRAS.maxMinutosPorDia + pausa);
-    const maximo = duracao(REGRAS.minutosPorDia + REGRAS.maxMinutosPorDia + pausa);
-    throw new ErroPublico(`Entre a entrada e a saída tem de haver entre ${minimo} e ${maximo}, com a pausa. Dias completos de ausência precisam de aprovação da APJM.`);
+    const minimo = duracao(REGRAS.minutosPorDia - REGRAS.maxMinutosPorDia);
+    const maximo = duracao(REGRAS.minutosPorDia + REGRAS.maxMinutosPorDia);
+    throw new ErroPublico(`Cada dia tem de ter entre ${minimo} e ${maximo} de trabalho (até ${duracao(REGRAS.maxMinutosPorDia)} a mais ou a menos). Para não trabalhar o dia inteiro, use "Tirar o dia".`);
   }
-  return { minutos, entrada: formatarHora(e), saida: formatarHora(s) };
+  return { minutos, manha: blocoEmTexto(manha), tarde: blocoEmTexto(tarde), ajuste, observacao, tipo: '' };
 }
 
 /** Semanas mostradas na página do funcionário, para registar ou planear horas. */
@@ -220,17 +301,25 @@ export function semanasEditaveis(saldo, feriados, horario) {
       const registo = porDia.get(data);
       const minutos = registo?.minutos ?? 0;
       const ferias = Boolean(registo?.ferias);
-      const apjm = minutos !== 0 && registadoPelaApjm(data, minutos, feriados);
+      const diaTirado = registo?.diaTirado ?? null;
+      const apjm = minutos !== 0 && registadoPelaApjm(data, minutos, feriados, diaTirado);
+      const comBlocos = Boolean(registo?.manha || registo?.tarde);
       dias.push({
         data,
         minutos,
-        // Sem registo, mostra o horário habitual
-        entrada: formatarHora(registo?.entrada ?? horario.entrada),
-        saida: formatarHora(registo?.saida ?? horario.saida),
+        // Sem blocos registados (dia novo, dia tirado ou registo antigo), mostra o horário habitual
+        manha: blocoEmTexto(comBlocos ? registo.manha : horario.manha),
+        tarde: blocoEmTexto(comBlocos ? registo.tarde : horario.tarde),
+        ajuste: comBlocos ? registo.ajuste : 0,
+        // Registo antigo, de antes dos dois blocos
+        entrada: !comBlocos && registo?.entrada != null ? formatarHora(registo.entrada) : null,
+        saida: !comBlocos && registo?.saida != null ? formatarHora(registo.saida) : null,
+        observacao: registo?.observacao ?? '',
         registado: Boolean(registo),
         feriado: feriados.has(data),
         nomeFeriado: nomeDoFeriado(feriados, data),
         ferias,
+        diaTirado,
         apjm,
         editavel: ehEditavel(data, hoje, feriados) && !apjm && !ferias,
       });
@@ -272,12 +361,17 @@ export function historico(saldo, feriados) {
       data: d.data,
       minutos: d.minutos,
       // Num dia útil o desvio é face às 8h; num feriado, são as horas trabalhadas
-      trabalhados: d.ferias ? 0 : feriado ? Math.max(0, d.minutos) : REGRAS.minutosPorDia + d.minutos,
-      entrada: d.entrada === null ? null : formatarHora(d.entrada),
-      saida: d.saida === null ? null : formatarHora(d.saida),
+      trabalhados: d.ferias || d.diaTirado ? 0 : feriado ? Math.max(0, d.minutos) : REGRAS.minutosPorDia + d.minutos,
+      manha: blocoEmTexto(d.manha),
+      tarde: blocoEmTexto(d.tarde),
+      ajuste: d.ajuste ?? 0,
+      entrada: d.entrada == null ? null : formatarHora(d.entrada),
+      saida: d.saida == null ? null : formatarHora(d.saida),
       estado: d.data < saldo.hoje ? 'confirmado' : d.data === saldo.hoje ? 'hoje' : 'planeado',
-      apjm: registadoPelaApjm(d.data, d.minutos, feriados),
+      apjm: registadoPelaApjm(d.data, d.minutos, feriados, d.diaTirado),
       ferias: Boolean(d.ferias),
+      diaTirado: d.diaTirado ?? null,
+      observacao: d.observacao ?? '',
       feriado,
       nomeFeriado: nomeDoFeriado(feriados, d.data),
       notas: d.notas,
@@ -290,7 +384,7 @@ export function historico(saldo, feriados) {
   const fim = [saldo.hoje, ...dias.map((d) => d.data)].sort().at(-1);
   const feriadosSemRegisto = [...feriados.keys()]
     .filter((data) => data >= inicio && data <= fim && !ehFimDeSemana(data) && !registados.has(data))
-    .map((data) => ({ data, minutos: 0, entrada: null, saida: null, notas: [] }));
+    .map((data) => ({ data, minutos: 0, manha: null, tarde: null, entrada: null, saida: null, notas: [] }));
 
   return [...dias, ...feriadosSemRegisto]
     .sort((a, b) => b.data.localeCompare(a.data))

@@ -1,6 +1,8 @@
-import { acrescentarRegistos, carregarDados, carregarDadosAtuais, gravarRegisto } from './dados.js';
+import { acrescentarRegistos, carregarDados, carregarDadosAtuais, gravarRegisto, linhaParaFolha } from './dados.js';
 import { ehDiaUtil, formatarHora, hojeEmLisboa, somarDias } from './datas.js';
-import { calcularSaldo, desvioDoHorario, ErroPublico, feriasDoAno, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
+import { calcularSaldo, desvioDosBlocos, ErroPublico, feriasDoAno, historico, REGRAS, semanasEditaveis, validarRegisto } from './saldo.js';
+
+const blocoEmTexto = (bloco) => (bloco ? { entrada: formatarHora(bloco.entrada), saida: formatarHora(bloco.saida) } : null);
 
 function json(corpo, estado = 200) {
   return new Response(JSON.stringify(corpo), {
@@ -33,9 +35,8 @@ function detalhe(funcionario, dados, hoje) {
     regras: REGRAS,
     resumo: resumo(saldo),
     horario: {
-      entrada: formatarHora(funcionario.horario.entrada),
-      saida: formatarHora(funcionario.horario.saida),
-      pausa: funcionario.horario.pausa,
+      manha: blocoEmTexto(funcionario.horario.manha),
+      tarde: blocoEmTexto(funcionario.horario.tarde),
     },
     semanas: semanasEditaveis(saldo, dados.feriados, funcionario.horario),
     historico: historico(saldo, dados.feriados),
@@ -96,7 +97,7 @@ async function api(request, env, ctx, url) {
       const registo = validarRegisto(corpo, hoje, atuais.feriados, {
         minutosAtuais: doDia.reduce((t, r) => t + r.minutos, 0),
         ferias: doDia.some((r) => r.ferias),
-        pausa: funcionario.horario.pausa,
+        diaTirado: doDia.find((r) => r.diaTirado)?.diaTirado ?? null,
       });
       const dados = await gravarRegisto(env, ctx, { funcionario: funcionario.id, data: corpo.data, ...registo });
       return json(detalhe(funcionario, dados, hoje));
@@ -158,7 +159,7 @@ async function pagina(request, env, url) {
 
 /**
  * Preenchimento noturno (Cron Trigger): todos os dias úteis ficam na folha. Para cada pessoa,
- * acrescenta o horário habitual nos dias úteis já terminados que ainda não têm registo.
+ * acrescenta o horário habitual (os dois blocos) nos dias úteis já terminados que ainda não têm registo.
  * Recua até 31 dias, para recuperar noites em que o preenchimento tenha falhado.
  */
 export async function preencherDias(env, hoje = hojeEmLisboa()) {
@@ -172,13 +173,13 @@ export async function preencherDias(env, hoje = hojeEmLisboa()) {
     if (!ehDiaUtil(data, dados.feriados)) continue;
     for (const f of dados.funcionarios) {
       if (existentes.has(`${f.id} ${data}`)) continue;
-      linhas.push({
+      linhas.push(linhaParaFolha({
         data,
         funcionario: f.id,
-        entrada: formatarHora(f.horario.entrada),
-        saida: formatarHora(f.horario.saida),
-        horas: desvioDoHorario(f.horario.entrada, f.horario.saida, f.horario.pausa) / 60,
-      });
+        manha: blocoEmTexto(f.horario.manha),
+        tarde: blocoEmTexto(f.horario.tarde),
+        minutos: desvioDosBlocos(f.horario.manha, f.horario.tarde),
+      }));
     }
   }
   if (linhas.length) await acrescentarRegistos(env, linhas);

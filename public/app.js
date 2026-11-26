@@ -102,7 +102,7 @@ document.addEventListener('visibilitychange', async () => {
     escondidaDesde = Date.now();
     return;
   }
-  const ocupada = app.querySelector('.dia-campos select:disabled, form.pin');
+  const ocupada = app.querySelector('details.dia-editar[open], dialog[open], form.pin');
   if (!escondidaDesde || Date.now() - escondidaDesde < 60_000 || ocupada) return;
   const y = window.scrollY;
   await mostrar({ manterPosicao: true });
@@ -286,18 +286,25 @@ function paginaRegras() {
       'Cada pessoa gere o seu saldo de forma autónoma e consciente, procurando mantê-lo tão perto de zero quanto possível (art. 3.º).',
       'Se sair mais tarde num dia, sempre que possível entre mais tarde no dia seguinte para compensar.',
       'Como regra, as horas positivas gozam-se em períodos de horas distribuídos ao longo do tempo, e não em dias completos.',
-      'Na app, regista a <strong>hora de entrada e de saída</strong> de cada dia útil, em intervalos de 15 minutos. Pode registar a semana passada e planear até duas semanas à frente.',
-      'Tirando a pausa, cada dia pode ter <strong>até 2 horas a mais ou a menos</strong> do que as 8 horas (entre 6h e 10h de trabalho).',
+      'Na app, cada dia útil tem <strong>dois blocos de trabalho</strong>: o da manhã e o da tarde, com a hora de entrada e de saída de cada um, em intervalos de 15 minutos. A pausa é o intervalo entre os dois blocos. Pode registar a semana passada e planear até duas semanas à frente.',
+      'Cada dia pode ter <strong>até 7 horas a mais ou a menos</strong> do que as 8 horas (entre 1h e 15h de trabalho).',
+      'Se trabalhou fora dos blocos, ou se ausentou durante um bloco, use o <strong>ajuste extraordinário</strong>, em intervalos de 15 minutos. Conta para o mesmo limite de 7 horas por dia.',
+      'Em cada dia pode deixar uma <strong>observação</strong> com até 300 caracteres (ex.: o motivo de um ajuste).',
       'O saldo total é atualizado no fim de cada dia. As horas de hoje e dos próximos dias aparecem como planeadas.',
     ]],
     ['Gozo de horas positivas', [
       'Se gozar horas positivas afetar os horários dos períodos não letivos, peça <strong>autorização prévia à APJM</strong>, com antecedência suficiente para organizar uma substituição (art. 4.º).',
       'O pedido deve ter em conta a continuidade do funcionamento e a cobertura dos períodos em causa.',
     ]],
+    ['Tirar o dia', [
+      'Pode usar 8 horas do saldo flexível para <strong>tirar o dia</strong>, de folga ou de greve, sempre com <strong>aprovação prévia do executivo</strong>.',
+      'Na app, use o botão "Tirar o dia" no dia em causa. Antes de confirmar, a app mostra o efeito no saldo e pede que confirme que tem a aprovação prévia.',
+      'O dia conta −8h no saldo. Enquanto o dia estiver aberto na app, pode anular e voltar ao horário habitual.',
+    ]],
     ['Ausência de dia completo', [
-      'Gozar um dia completo com o saldo positivo é excecional, tem de ser justificado e precisa sempre de <strong>aprovação prévia da APJM</strong> (art. 5.º).',
+      'Gozar um dia completo com o saldo positivo é excecional, tem de ser justificado e precisa sempre de <strong>aprovação prévia</strong> (art. 5.º).',
       'Podem justificar uma exceção: doença da própria ou de familiares próximos; ter trabalhado um dia completo num fim de semana ou feriado; ou outras situações pessoais excecionais, avaliadas pela APJM.',
-      'Os dias completos de ausência e o trabalho ao fim de semana ou feriado são registados pela APJM na folha. Na app aparecem como "Registado pela APJM" e não podem ser alterados.',
+      'O trabalho ao fim de semana ou feriado e as ausências que não passem pelo botão "Tirar o dia" são registados pela APJM na folha. Na app aparecem como "Registado pela APJM" e não podem ser alterados.',
     ]],
   ];
   app.innerHTML = `
@@ -383,23 +390,88 @@ function pedirPin(pessoa, mensagem = '') {
 const paraMinutos = (hora) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
 const paraHora = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-/** Horas do dia de 15 em 15 minutos, das 6:00 às 23:00 (e a atual, se estiver fora). */
+const MOTIVOS = { folga: 'Folga', greve: 'Greve' };
+
+/** Horas do dia de 15 em 15 minutos, das 6:00 às 23:00 (e a atual, se estiver fora), com "—" para sem bloco. */
 function opcoesDeHora(atual, regras) {
   const valores = [];
   for (let m = 6 * 60; m <= 23 * 60; m += regras.passoMinutos) valores.push(m);
-  const a = paraMinutos(atual);
-  if (!valores.includes(a)) {
+  const a = atual ? paraMinutos(atual) : null;
+  if (a !== null && !valores.includes(a)) {
     valores.push(a);
     valores.sort((x, y) => x - y);
   }
-  return valores.map((m) => `<option value="${paraHora(m)}"${m === a ? ' selected' : ''}>${paraHora(m)}</option>`).join('');
+  return `<option value=""${a === null ? ' selected' : ''}>—</option>`
+    + valores.map((m) => `<option value="${paraHora(m)}"${m === a ? ' selected' : ''}>${paraHora(m)}</option>`).join('');
+}
+
+/** Ajuste extraordinário: de −7h a +7h, de 15 em 15 minutos. */
+function opcoesDeAjuste(atual, regras) {
+  const opcoes = [];
+  for (let m = -regras.maxMinutosPorDia; m <= regras.maxMinutosPorDia; m += regras.passoMinutos) {
+    opcoes.push(`<option value="${m}"${m === atual ? ' selected' : ''}>${m === 0 ? 'Sem ajuste' : horas(m)}</option>`);
+  }
+  return opcoes.join('');
+}
+
+const textoBloco = (b) => (b ? `${b.entrada}–${b.saida}` : '—');
+
+/** Resumo de um dia: os dois blocos (ou o horário antigo) e o ajuste. */
+function resumoDoDia(dia) {
+  if (dia.diaTirado) return MOTIVOS[dia.diaTirado];
+  const partes = dia.entrada && !dia.manha && !dia.tarde ? [`${dia.entrada}–${dia.saida}`] : [textoBloco(dia.manha), textoBloco(dia.tarde)];
+  if (dia.ajuste) partes.push(`ajuste ${horas(dia.ajuste)}`);
+  return partes.join(' · ');
+}
+
+function editorDoDia(dia, d) {
+  const longo = diaLongo(dia.data);
+  const id = `dia-${dia.data}`;
+  const observacao = `
+          <label class="campo campo-largo" for="${id}-obs">Observação <small class="contador" data-contador>${dia.observacao.length}/${d.regras.maxCaracteresObservacao}</small></label>
+          <textarea id="${id}-obs" data-campo="observacao" maxlength="${d.regras.maxCaracteresObservacao}" rows="2" placeholder="Opcional">${esc(dia.observacao)}</textarea>`;
+  if (dia.diaTirado) {
+    return `
+        <form class="dia-form" data-dia="${dia.data}" data-dia-tirado="${dia.diaTirado}" novalidate>
+          <p class="dia-tirado-info">Dia tirado (${MOTIVOS[dia.diaTirado].toLowerCase()}) com 8 horas do saldo flexível.</p>
+          ${observacao}
+          <div class="dia-acoes">
+            <button type="submit" class="button sem-seta">Guardar observação</button>
+            <button type="button" class="button button-secundario sem-seta" data-anular>Anular e voltar ao horário habitual</button>
+          </div>
+        </form>`;
+  }
+  return `
+        <form class="dia-form" data-dia="${dia.data}" novalidate>
+          <fieldset class="bloco">
+            <legend>Manhã</legend>
+            <select data-campo="manha-entrada" aria-label="Entrada da manhã em ${longo}">${opcoesDeHora(dia.manha?.entrada, d.regras)}</select>
+            <span aria-hidden="true">–</span>
+            <select data-campo="manha-saida" aria-label="Saída da manhã em ${longo}">${opcoesDeHora(dia.manha?.saida, d.regras)}</select>
+          </fieldset>
+          <fieldset class="bloco">
+            <legend>Tarde</legend>
+            <select data-campo="tarde-entrada" aria-label="Entrada da tarde em ${longo}">${opcoesDeHora(dia.tarde?.entrada, d.regras)}</select>
+            <span aria-hidden="true">–</span>
+            <select data-campo="tarde-saida" aria-label="Saída da tarde em ${longo}">${opcoesDeHora(dia.tarde?.saida, d.regras)}</select>
+          </fieldset>
+          <label class="campo" for="${id}-ajuste">Ajuste extraordinário</label>
+          <select id="${id}-ajuste" data-campo="ajuste">${opcoesDeAjuste(dia.ajuste, d.regras)}</select>
+          ${observacao}
+          <p class="dia-calculo" data-calculo aria-live="polite"></p>
+          <div class="dia-acoes">
+            <button type="submit" class="button sem-seta">Guardar</button>
+            <button type="button" class="button button-secundario sem-seta" data-tirar-dia>Tirar o dia</button>
+          </div>
+        </form>`;
 }
 
 function semana(s, d) {
   const total = s.dias.reduce((t, dia) => t + dia.minutos, 0);
   const dias = s.dias.map((dia) => {
     const quando = dia.data < d.hoje ? 'passado' : dia.data === d.hoje ? 'hoje' : 'futuro';
-    const longo = diaLongo(dia.data);
+    const nome = `<span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>`;
+    const obs = dia.observacao ? `<small class="dia-obs">${esc(dia.observacao)}</small>` : '';
     let valor;
     if (dia.ferias) {
       // Férias marcadas pela APJM na folha: dia sem trabalho, que não se pode alterar
@@ -409,20 +481,27 @@ function semana(s, d) {
       valor = `<span class="dia-feriado">Feriado${dia.nomeFeriado ? `<small>${esc(dia.nomeFeriado)}</small>` : ''}${
         dia.minutos ? `<small>${horas(dia.minutos)} registadas pela APJM</small>` : ''}</span>`;
     } else if (dia.apjm) {
-      valor = `<span class="dia-apjm">${dia.registado && dia.minutos > -d.regras.minutosPorDia ? `${dia.entrada}–${dia.saida} · ` : ''}${horas(dia.minutos)}<small>APJM</small></span>`;
+      valor = `<span class="dia-apjm">${dia.registado && dia.minutos > -d.regras.minutosPorDia ? `${resumoDoDia(dia)} · ` : ''}${horas(dia.minutos)}<small>APJM</small></span>`;
     } else if (dia.editavel) {
-      valor = `
-        <span class="dia-campos" data-dia="${dia.data}">
-          <select data-campo="entrada" aria-label="Entrada em ${longo}">${opcoesDeHora(dia.entrada, d.regras)}</select>
-          <span aria-hidden="true">–</span>
-          <select data-campo="saida" aria-label="Saída em ${longo}">${opcoesDeHora(dia.saida, d.regras)}</select>
-          <span class="dia-desvio">${horas(dia.minutos)}</span>
-        </span>`;
-    } else valor = `<span class="dia-fixo">${dia.entrada}–${dia.saida} · ${horas(dia.minutos)}</span>`;
+      return `
+      <li class="dia dia-${quando}${dia.diaTirado ? ' dia-tirado' : ''}">
+        <details class="dia-editar" data-dia="${dia.data}">
+          <summary>
+            ${nome}
+            <span class="dia-resumo">${esc(resumoDoDia(dia))} <b>${horas(dia.minutos)}</b></span>
+            ${obs}
+          </summary>
+          ${editorDoDia(dia, d)}
+        </details>
+        <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
+      </li>`;
+    } else valor = `<span class="dia-fixo">${esc(resumoDoDia(dia))} · ${horas(dia.minutos)}</span>`;
+    const inativo = dia.feriado || dia.ferias;
     return `
-      <li class="dia dia-${quando}${dia.feriado || dia.ferias ? ' dia-inativo' : ''}"${dia.feriado || dia.ferias ? ' aria-disabled="true"' : ''}>
-        <span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>
+      <li class="dia dia-${quando}${inativo ? ' dia-inativo' : ''}${dia.diaTirado ? ' dia-tirado' : ''}"${inativo ? ' aria-disabled="true"' : ''}>
+        ${nome}
         ${valor}
+        ${obs}
         <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
       </li>`;
   }).join('');
@@ -435,11 +514,29 @@ function semana(s, d) {
     </section>`;
 }
 
+function horarioNoHistorico(h) {
+  if (h.manha || h.tarde) {
+    const blocos = [h.manha, h.tarde].filter(Boolean).map(textoBloco).join('<br>');
+    return h.ajuste ? `${blocos}<br>ajuste ${horas(h.ajuste)}` : blocos;
+  }
+  return h.entrada ? `${h.entrada}–${h.saida}` : '—';
+}
+
 function tabelaHistorico(d) {
   if (!d.historico.length) return '<p>Ainda não há horas registadas.</p>';
   const estados = { confirmado: 'Confirmado', hoje: 'Hoje', planeado: 'Planeado' };
   const linhas = d.historico.map((h) => {
-    const notas = h.notas.length ? `<small>${esc(h.notas.join(' · '))}</small>` : '';
+    const textos = [...h.notas, h.observacao].filter(Boolean);
+    const notas = textos.length ? `<small>${esc(textos.join(' · '))}</small>` : '';
+    if (h.diaTirado) {
+      return `
+      <tr>
+        <td>${diaCurto(h.data)}${notas}</td>
+        <td class="num">—<small>Dia tirado</small></td>
+        <td class="num">${horas(h.minutos)}</td>
+        <td>${MOTIVOS[h.diaTirado]}<small>${estados[h.estado]}</small></td>
+      </tr>`;
+    }
     if (h.ferias || (h.feriado && !h.minutos)) {
       const motivo = h.ferias ? 'Férias' : `Feriado${h.nomeFeriado ? `<small>${esc(h.nomeFeriado)}</small>` : ''}`;
       return `
@@ -453,7 +550,7 @@ function tabelaHistorico(d) {
     return `
       <tr${h.feriado ? ' class="linha-inativa"' : ''}>
         <td>${diaCurto(h.data)}${notas}</td>
-        <td class="num">${h.entrada ? `${h.entrada}–${h.saida}` : '—'}<small>${horas(h.trabalhados, { sinal: false })} trabalhadas</small></td>
+        <td class="num">${horarioNoHistorico(h)}<small>${horas(h.trabalhados, { sinal: false })} trabalhadas</small></td>
         <td class="num">${horas(h.minutos)}</td>
         <td>${h.feriado ? `Feriado${h.nomeFeriado ? ` · ${esc(h.nomeFeriado)}` : ''}` : estados[h.estado]}${h.apjm ? '<small>Registado pela APJM</small>' : ''}</td>
       </tr>`;
@@ -489,8 +586,86 @@ function tabelaFechos(d) {
     </section>`;
 }
 
+/** Lê o formulário de um dia: os dois blocos, o ajuste e a observação. */
+function lerFormulario(form) {
+  const valor = (campo) => form.querySelector(`[data-campo="${campo}"]`)?.value ?? '';
+  return {
+    manha: { entrada: valor('manha-entrada'), saida: valor('manha-saida') },
+    tarde: { entrada: valor('tarde-entrada'), saida: valor('tarde-saida') },
+    ajuste: Number(valor('ajuste') || 0),
+    observacao: valor('observacao'),
+  };
+}
+
+/** Total de trabalho e balanço do dia, calculados no browser enquanto a pessoa escolhe as horas. */
+function calcularNoFormulario(form, regras) {
+  const { manha, tarde, ajuste } = lerFormulario(form);
+  let trabalho = ajuste;
+  for (const [nome, b] of [['da manhã', manha], ['da tarde', tarde]]) {
+    if (!b.entrada && !b.saida) continue;
+    if (!b.entrada || !b.saida) return { erro: `Escolha a entrada e a saída ${nome}.` };
+    const duracao = paraMinutos(b.saida) - paraMinutos(b.entrada);
+    if (duracao <= 0) return { erro: `A saída ${nome} tem de ser depois da entrada.` };
+    trabalho += duracao;
+  }
+  if (manha.saida && tarde.entrada && paraMinutos(tarde.entrada) < paraMinutos(manha.saida)) {
+    return { erro: 'O bloco da tarde tem de começar depois de acabar o da manhã.' };
+  }
+  const balanco = trabalho - regras.minutosPorDia;
+  if (Math.abs(balanco) > regras.maxMinutosPorDia) {
+    return { erro: `${horas(trabalho, { sinal: false })} de trabalho: o balanço (${horas(balanco)}) passa o limite de ${horas(regras.maxMinutosPorDia, { sinal: false })} por dia. Para não trabalhar o dia inteiro, use "Tirar o dia".` };
+  }
+  return { texto: `${horas(trabalho, { sinal: false })} de trabalho · balanço <b>${horas(balanco)}</b>` };
+}
+
+/**
+ * Janela de confirmação de "Tirar o dia": mostra o efeito no saldo e a necessidade de aprovação
+ * prévia do executivo. Devolve "folga" ou "greve", ou null se a pessoa cancelar.
+ */
+function confirmarTirarDia(d, dia) {
+  const saldoDepois = d.resumo.saldoPrevisto - dia.minutos - d.regras.minutosPorDia;
+  const dialogo = document.createElement('dialog');
+  dialogo.className = 'dialogo cartao';
+  dialogo.setAttribute('aria-labelledby', 'dialogo-titulo');
+  dialogo.innerHTML = `
+    <form method="dialog" class="dialogo-form">
+      <h2 id="dialogo-titulo">Tirar o dia</h2>
+      <p>Vai tirar <strong>${diaLongo(dia.data)}</strong> usando <strong>${horas(d.regras.minutosPorDia, { sinal: false })} do seu saldo flexível</strong>.</p>
+      <ul class="lista">
+        <li>O dia conta <strong>${horas(-d.regras.minutosPorDia)}</strong> no saldo${dia.minutos ? `, em vez de ${horas(dia.minutos)}` : ''}.</li>
+        <li>Saldo total com as horas planeadas: <strong>${horas(d.resumo.saldoPrevisto)}</strong> → <strong>${horas(saldoDepois)}</strong>.</li>
+        <li>Só pode tirar o dia (de folga ou de greve) com <strong>aprovação prévia do executivo</strong>.</li>
+        <li>Enquanto o dia estiver aberto na app, pode anular e voltar ao horário habitual.</li>
+      </ul>
+      <fieldset class="dialogo-motivo">
+        <legend>Motivo</legend>
+        <label><input type="radio" name="motivo" value="folga" checked> Folga</label>
+        <label><input type="radio" name="motivo" value="greve"> Greve</label>
+      </fieldset>
+      <label class="dialogo-confirmo"><input type="checkbox" name="confirmo"> Confirmo que tenho aprovação prévia do executivo para tirar este dia.</label>
+      <div class="dia-acoes">
+        <button type="submit" class="button sem-seta" value="confirmar" disabled>Tirar o dia</button>
+        <button type="submit" class="button button-secundario sem-seta" value="cancelar" formnovalidate>Cancelar</button>
+      </div>
+    </form>`;
+  document.body.append(dialogo);
+  const form = dialogo.querySelector('form');
+  const confirmar = form.querySelector('[value="confirmar"]');
+  form.confirmo.addEventListener('change', () => (confirmar.disabled = !form.confirmo.checked));
+  return new Promise((resolver) => {
+    dialogo.addEventListener('close', () => {
+      const ok = dialogo.returnValue === 'confirmar' && form.confirmo.checked;
+      const motivo = form.motivo.value;
+      dialogo.remove();
+      resolver(ok ? motivo : null);
+    });
+    dialogo.showModal();
+  });
+}
+
 function mostrarFuncionario(d, pin) {
   const r = d.resumo;
+  const h = d.horario;
 
   app.innerHTML = `
     <section class="band hero">
@@ -507,11 +682,12 @@ function mostrarFuncionario(d, pin) {
 
     <section class="band" aria-labelledby="titulo-registar">
       <h2 id="titulo-registar">Registar horas</h2>
-      <p class="intro">O seu horário habitual é ${d.horario.entrada}–${d.horario.saida}, com ${horas(d.horario.pausa, { sinal: false })} de pausa.
-        Em cada dia, escolha a hora a que entrou e saiu (ou vai entrar e sair). Grava automaticamente.
-        Pode fazer até 2 horas a mais ou a menos do que as 8 horas de trabalho.
-        Se sair mais tarde, sempre que possível entre mais tarde no dia seguinte.
-        Dias completos de ausência e trabalho ao fim de semana ou feriado precisam de aprovação da APJM, que os regista na folha.</p>
+      <p class="intro">O seu horário habitual é ${textoBloco(h.manha)} de manhã e ${textoBloco(h.tarde)} à tarde.
+        Toque num dia para escolher a hora de entrada e de saída de cada bloco (a que entrou e saiu, ou vai entrar e sair) e carregue em <strong>Guardar</strong>.
+        Pode fazer até ${horas(d.regras.maxMinutosPorDia, { sinal: false })} a mais ou a menos do que as 8 horas de trabalho.
+        Use o <strong>ajuste extraordinário</strong> para trabalho fora dos blocos ou ausências curtas, e a <strong>observação</strong> para explicar.
+        Com aprovação prévia do executivo, pode <strong>tirar o dia</strong> (folga ou greve) com 8 horas do saldo.
+        Trabalho ao fim de semana ou feriado precisa de aprovação da APJM, que o regista na folha.</p>
       <div class="semanas">${d.semanas.map((s) => semana(s, d)).join('')}</div>
     </section>
 
@@ -526,37 +702,69 @@ function mostrarFuncionario(d, pin) {
     navegar('/');
   });
 
-  const seletores = () => app.querySelectorAll('.dia-campos select');
+  const diasPorData = new Map(d.semanas.flatMap((s) => s.dias).map((dia) => [dia.data, dia]));
+  const botoes = () => app.querySelectorAll('.dia-form button');
 
-  app.querySelectorAll('.dia-campos').forEach((campos) => {
-    const data = campos.dataset.dia;
-    const campo = (nome) => campos.querySelector(`[data-campo="${nome}"]`);
-    const iniciais = { entrada: campo('entrada').value, saida: campo('saida').value };
+  /** Envia um dia para a folha e volta a mostrar a página, com o dia gravado assinalado. */
+  async function gravar(data, corpo, form) {
+    const estado = app.querySelector(`[data-estado="${data}"]`);
+    estado.classList.remove('dia-estado-erro');
+    estado.textContent = 'A guardar…';
+    botoes().forEach((b) => (b.disabled = true));
+    const minha = visita;
+    try {
+      const novo = await api(`funcionarios/${d.id}/registos`, { pin, data, ...corpo });
+      if (mudouDePagina(minha)) return; // a gravação conta, mas a pessoa já saiu desta página
+      const y = window.scrollY;
+      mostrarFuncionario(novo, pin);
+      window.scrollTo(0, y);
+      app.querySelector(`[data-estado="${data}"]`).textContent = 'Guardado';
+      app.querySelector(`details[data-dia="${data}"] summary`)?.focus({ preventScroll: true });
+    } catch (erro) {
+      if (mudouDePagina(minha)) return;
+      estado.textContent = erro.message;
+      estado.classList.add('dia-estado-erro');
+      botoes().forEach((b) => (b.disabled = false));
+      form?.querySelector('[data-calculo]') && atualizarCalculo(form);
+    }
+  }
 
-    campos.addEventListener('change', async (e) => {
-      const estado = app.querySelector(`[data-estado="${data}"]`);
-      estado.classList.remove('dia-estado-erro');
-      const entrada = campo('entrada').value;
-      const saida = campo('saida').value;
+  function atualizarCalculo(form) {
+    const saida = form.querySelector('[data-calculo]');
+    if (!saida) return;
+    const { erro, texto } = calcularNoFormulario(form, d.regras);
+    saida.innerHTML = erro ? esc(erro) : texto;
+    saida.classList.toggle('dia-estado-erro', Boolean(erro));
+    form.querySelector('[type="submit"]').disabled = Boolean(erro);
+  }
 
-      seletores().forEach((s) => (s.disabled = true));
-      estado.textContent = 'A guardar…';
-      const minha = visita;
-      try {
-        const novo = await api(`funcionarios/${d.id}/registos`, { pin, data, entrada, saida });
-        if (mudouDePagina(minha)) return; // a gravação conta, mas a pessoa já saiu desta página
-        const y = window.scrollY;
-        mostrarFuncionario(novo, pin);
-        window.scrollTo(0, y);
-        app.querySelector(`[data-estado="${data}"]`).textContent = 'Guardado';
-        app.querySelector(`.dia-campos[data-dia="${data}"] [data-campo="${e.target.dataset.campo}"]`)?.focus({ preventScroll: true });
-      } catch (erro) {
-        if (mudouDePagina(minha)) return;
-        Object.entries(iniciais).forEach(([nome, valor]) => (campo(nome).value = valor));
-        estado.textContent = erro.message;
-        estado.classList.add('dia-estado-erro');
-        seletores().forEach((s) => (s.disabled = false));
-      }
+  app.querySelectorAll('.dia-form').forEach((form) => {
+    const data = form.dataset.dia;
+    const dia = diasPorData.get(data);
+    atualizarCalculo(form);
+    form.addEventListener('change', () => atualizarCalculo(form));
+
+    const textarea = form.querySelector('[data-campo="observacao"]');
+    const contador = form.querySelector('[data-contador]');
+    textarea.addEventListener('input', () => (contador.textContent = `${textarea.value.length}/${d.regras.maxCaracteresObservacao}`));
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const corpo = lerFormulario(form);
+      // Num dia tirado só se altera a observação (o dia continua tirado)
+      if (form.dataset.diaTirado) return gravar(data, { tirarDia: form.dataset.diaTirado, observacao: corpo.observacao }, form);
+      gravar(data, corpo, form);
+    });
+
+    form.querySelector('[data-tirar-dia]')?.addEventListener('click', async () => {
+      const motivo = await confirmarTirarDia(d, dia);
+      if (motivo) gravar(data, { tirarDia: motivo, observacao: textarea.value }, form);
+    });
+
+    form.querySelector('[data-anular]')?.addEventListener('click', () => {
+      // Volta ao horário habitual, sem ajuste, e mantém a observação
+      const bloco = (b) => b ?? { entrada: '', saida: '' };
+      gravar(data, { manha: bloco(d.horario.manha), tarde: bloco(d.horario.tarde), ajuste: 0, observacao: textarea.value }, form);
     });
   });
 }

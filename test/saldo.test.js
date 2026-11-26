@@ -2,14 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { fimDoMes, segundaDeReferencia } from '../src/datas.js';
-import { calcularSaldo, desvioDoHorario, estadoDosLimites, feriasDoAno, validarRegisto, semanasEditaveis, historico } from '../src/saldo.js';
+import { calcularSaldo, desvioDoHorario, desvioDosBlocos, estadoDosLimites, feriasDoAno, validarRegisto, semanasEditaveis, historico } from '../src/saldo.js';
 import { preencherDias } from '../src/index.js';
 import { interpretar, lerData, lerHoras } from '../src/dados.js';
 
 // Outubro de 2026: segunda 19, quarta 21, sábado 24, segunda 26, quarta 28.
 const r = (data, minutos) => ({ data, minutos, nota: '' });
 const H = 60;
-const HORARIO_VERA = { entrada: 9 * H + 30, saida: 18 * H + 30, pausa: H };
+const bloco = (e, s) => ({ entrada: e, saida: s });
+const HORARIO_VERA = { manha: bloco(9 * H + 30, 14 * H), tarde: bloco(15 * H, 18 * H + 30) };
 const saldo = (registos, hoje, extra = {}) => calcularSaldo({ saldoInicial: 0, registos, hoje, ...extra });
 
 test('fim do mês', () => {
@@ -91,34 +92,93 @@ test('vários registos no mesmo dia somam-se', () => {
   assert.equal(s.dias[0].minutos, 90);
 });
 
-test('o desvio vem da entrada, da saída e da pausa de 1h', () => {
-  assert.equal(desvioDoHorario(9 * H + 30, 18 * H + 30, H), 0);
+test('o desvio vem dos dois blocos e do ajuste extraordinário', () => {
+  // Vera: 9:30–14:00 e 15:00–18:30 = 8h
+  assert.equal(desvioDosBlocos(bloco(9 * H + 30, 14 * H), bloco(15 * H, 18 * H + 30)), 0);
+  // Mariana: 10:00–14:00 e 15:00–19:00 = 8h, mais 45 minutos de ajuste
+  assert.equal(desvioDosBlocos(bloco(10 * H, 14 * H), bloco(15 * H, 19 * H), 45), 45);
+  // Só a manhã
+  assert.equal(desvioDosBlocos(bloco(10 * H, 14 * H), null), -4 * H);
+  // Registos antigos, com uma entrada, uma saída e a pausa
   assert.equal(desvioDoHorario(9 * H + 30, 19 * H, H), 30);
-  assert.equal(desvioDoHorario(10 * H, 18 * H, H), -H);
 });
 
 test('validação dos registos', () => {
   const hoje = '2026-10-21';
   const f = new Set(['2026-10-22']);
-  const v = (data, entrada, saida, extra) => validarRegisto({ data, entrada, saida }, hoje, f, extra);
-  assert.deepEqual(v('2026-10-21', '9:30', '19:45'), { minutos: 75, entrada: '09:30', saida: '19:45' });
-  assert.deepEqual(v('2026-10-21', '10:30', '17:30'), { minutos: -120, entrada: '10:30', saida: '17:30' });
-  assert.throws(() => v('2026-10-21', '09:30', '20:45'), /entre 7h e 11h/);
-  assert.throws(() => v('2026-10-21', '11:00', '17:45'), /entre 7h e 11h/);
-  assert.throws(() => v('2026-10-21', '09:30', '18:40'), /15 minutos/);
-  assert.throws(() => v('2026-10-21', '18:30', '09:30'), /depois da entrada/);
-  assert.throws(() => v('2026-10-21', '', '18:30'), /entrada e de saída/);
-  assert.throws(() => v('2026-10-24', '09:30', '18:30'), /APJM/);
-  assert.throws(() => v('2026-10-22', '09:30', '18:30'), /APJM/);
-  // Um dia completo registado pela APJM na folha não pode ser alterado na app
-  assert.throws(() => v('2026-10-21', '09:30', '18:30', { minutosAtuais: -480 }), /registado pela APJM/);
-  assert.throws(() => v('2026-10-09', '09:30', '18:30'), /já não pode/);
-  assert.throws(() => v('2026-11-09', '09:30', '18:30'), /já não pode/);
-  assert.equal(v('2026-10-12', '09:00', '19:00').minutos, 60);
-  assert.equal(v('2026-11-06', '09:00', '19:00').minutos, 60);
-  // Outra pausa (ex.: 30 minutos)
-  assert.equal(v('2026-10-21', '09:00', '17:30', { pausa: 30 }).minutos, 0);
-  assert.throws(() => v('2026-02-30', '09:30', '18:30'), /Data inválida/);
+  const b = (entrada, saida) => ({ entrada, saida });
+  const v = (data, manha, tarde, extra = {}, opcoes) => validarRegisto({ data, manha, tarde, ...extra }, hoje, f, opcoes);
+  const VERA = [b('9:30', '14:00'), b('15:00', '18:30')];
+
+  assert.deepEqual(v('2026-10-21', b('9:30', '14:00'), b('15:00', '19:45')), {
+    minutos: 75, manha: b('09:30', '14:00'), tarde: b('15:00', '19:45'), ajuste: 0, observacao: '', tipo: '',
+  });
+  // Até 7h a menos: só 1h de trabalho
+  assert.equal(v('2026-10-21', b('10:00', '11:00'), b('', '')).minutos, -7 * H);
+  assert.equal(v('2026-10-21', b('', ''), b('15:00', '16:00')).tarde.entrada, '15:00');
+  // Até 7h a mais: 15h de trabalho
+  assert.equal(v('2026-10-21', b('07:00', '14:00'), b('15:00', '23:00')).minutos, 7 * H);
+  assert.throws(() => v('2026-10-21', b('10:00', '10:45'), b('', '')), /entre 1h e 15h/);
+  assert.throws(() => v('2026-10-21', b('07:00', '14:00'), b('14:00', '23:00')), /entre 1h e 15h/);
+  assert.throws(() => v('2026-10-21', b('', ''), b('', '')), /Tirar o dia/);
+  // Ajuste extraordinário, de 15 em 15 minutos, dentro do mesmo limite
+  assert.equal(v('2026-10-21', ...VERA, { ajuste: -45 }).minutos, -45);
+  assert.equal(v('2026-10-21', ...VERA, { ajuste: 7 * H }).minutos, 7 * H);
+  assert.throws(() => v('2026-10-21', ...VERA, { ajuste: 20 }), /15 minutos/);
+  assert.throws(() => v('2026-10-21', ...VERA, { ajuste: 7 * H + 15 }), /até 7h/);
+  assert.throws(() => v('2026-10-21', b('07:00', '14:00'), b('15:00', '22:00'), { ajuste: 2 * H }), /entre 1h e 15h/);
+  // Observação até 300 caracteres
+  assert.equal(v('2026-10-21', ...VERA, { observacao: '  Consulta  ' }).observacao, 'Consulta');
+  assert.equal(v('2026-10-21', ...VERA, { observacao: 'x'.repeat(300) }).observacao.length, 300);
+  assert.throws(() => v('2026-10-21', ...VERA, { observacao: 'x'.repeat(301) }), /300 caracteres/);
+  // Blocos mal preenchidos
+  assert.throws(() => v('2026-10-21', b('09:30', '14:10'), VERA[1]), /15 minutos/);
+  assert.throws(() => v('2026-10-21', b('14:00', '09:30'), VERA[1]), /saída da manhã/);
+  assert.throws(() => v('2026-10-21', b('09:30', ''), VERA[1]), /entrada e de saída da manhã/);
+  assert.throws(() => v('2026-10-21', b('09:30', '15:00'), b('14:00', '18:30')), /tarde tem de começar/);
+  // Dias que não se alteram na app
+  assert.throws(() => v('2026-10-24', ...VERA), /APJM/);
+  assert.throws(() => v('2026-10-22', ...VERA), /APJM/);
+  assert.throws(() => v('2026-10-21', ...VERA, {}, { minutosAtuais: -480 }), /registado pela APJM/);
+  assert.throws(() => v('2026-10-09', ...VERA), /já não pode/);
+  assert.throws(() => v('2026-11-09', ...VERA), /já não pode/);
+  assert.equal(v('2026-10-12', ...VERA).minutos, 0);
+  assert.equal(v('2026-11-06', ...VERA).minutos, 0);
+  assert.throws(() => v('2026-02-30', ...VERA), /Data inválida/);
+});
+
+test('tirar o dia: folga ou greve, conta −8h e pode ser anulado', () => {
+  const hoje = '2026-10-21';
+  const t = (corpo, opcoes) => validarRegisto({ data: '2026-10-23', ...corpo }, hoje, new Set(), opcoes);
+  assert.deepEqual(t({ tirarDia: 'greve', observacao: 'Greve geral' }), {
+    minutos: -8 * H, manha: null, tarde: null, ajuste: 0, observacao: 'Greve geral', tipo: 'greve',
+  });
+  assert.equal(t({ tirarDia: 'folga' }).tipo, 'folga');
+  assert.throws(() => t({ tirarDia: 'ferias' }), /folga ou de greve/);
+  // Um dia tirado (−8h) não é confundido com um dia registado pela APJM: pode ser anulado na app
+  const anular = t({ manha: { entrada: '09:30', saida: '14:00' }, tarde: { entrada: '15:00', saida: '18:30' } }, { minutosAtuais: -8 * H, diaTirado: 'folga' });
+  assert.deepEqual([anular.minutos, anular.tipo], [0, '']);
+  assert.throws(() => t({ tirarDia: 'folga' }, { ferias: true }), /férias/);
+  assert.throws(() => validarRegisto({ data: '2026-10-24', tirarDia: 'folga' }, hoje, new Set()), /APJM/);
+
+  // Na folha: o dia conta −8h, mesmo que tenha blocos, e aparece como dia tirado
+  const dados = interpretar({
+    funcionarios: [['id', 'nome', 'pin'], ['vera', 'Vera', '1']],
+    registos: [
+      ['data', 'funcionario', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'horas', 'tipo', 'observacao'],
+      ['2026-10-23', 'vera', '09:30', '14:00', '15:00', '19:30', '', 'Greve', 'Greve geral'],
+    ],
+    feriados: [['data']],
+  });
+  assert.deepEqual(dados.registos.map((r) => [r.minutos, r.diaTirado, r.manha, r.observacao]), [[-8 * H, 'greve', null, 'Greve geral']]);
+  const s = calcularSaldo({ saldoInicial: 0, registos: dados.registos, hoje: '2026-10-24' });
+  assert.equal(s.saldoTotal, -8 * H);
+  const dia = semanasEditaveis(s, dados.feriados, HORARIO_VERA)[0].dias[4];
+  assert.deepEqual([dia.diaTirado, dia.apjm, dia.editavel, dia.observacao], ['greve', false, true, 'Greve geral']);
+  // O editor mostra o horário habitual, para poder anular
+  assert.deepEqual(dia.manha, { entrada: '09:30', saida: '14:00' });
+  const h = historico(s, dados.feriados)[0];
+  assert.deepEqual([h.diaTirado, h.trabalhados, h.apjm, h.observacao], ['greve', 0, false, 'Greve geral']);
 });
 
 test('semanas para registar: a anterior, a corrente e as duas seguintes', () => {
@@ -127,8 +187,11 @@ test('semanas para registar: a anterior, a corrente e as duas seguintes', () => 
   assert.deepEqual(semanas.map((x) => x.segunda), ['2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']);
   assert.equal(semanas[1].atual, true);
   assert.equal(semanas[1].dias[1].minutos, 45);
-  // Sem registo, cada dia mostra o horário habitual
-  assert.deepEqual([semanas[1].dias[2].entrada, semanas[1].dias[2].saida, semanas[1].dias[2].registado], ['09:30', '18:30', false]);
+  // Sem registo, cada dia mostra o horário habitual (os dois blocos)
+  const quarta = semanas[1].dias[2];
+  assert.deepEqual([quarta.manha, quarta.tarde, quarta.ajuste, quarta.registado], [
+    { entrada: '09:30', saida: '14:00' }, { entrada: '15:00', saida: '18:30' }, 0, false,
+  ]);
 });
 
 test('histórico: os feriados aparecem sempre, como dias sem trabalho', () => {
@@ -194,29 +257,43 @@ test('interpretar a folha aceita cabeçalhos escritos de outra forma', () => {
     registos: [['Data', 'Funcionário', 'Horas'], ['2026-10-21', 'Mariana', '1,5'], ['', '', '']],
     feriados: [['Data', 'Descrição'], ['08/12/2026', 'Imaculada Conceição']],
   });
-  assert.deepEqual(dados.funcionarios, [{ id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, diasFerias: null, ativo: true, horario: { entrada: 540, saida: 1080, pausa: 60 } }]);
-  assert.deepEqual(dados.registos, [{ data: '2026-10-21', funcionario: 'mariana', minutos: 90, entrada: null, saida: null, ferias: false, nota: '' }]);
+  assert.deepEqual(dados.funcionarios, [{
+    id: 'mariana', nome: 'Mariana', pin: '1234', saldoInicial: 4200, diasFerias: null, ativo: true,
+    horario: { manha: bloco(9 * H, 13 * H), tarde: bloco(14 * H, 18 * H) }, pausa: 60,
+  }]);
+  assert.deepEqual(dados.registos, [{
+    data: '2026-10-21', funcionario: 'mariana', minutos: 90, manha: null, tarde: null, ajuste: 0,
+    entrada: null, saida: null, ferias: false, diaTirado: null, nota: '', observacao: '',
+  }]);
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
 });
 
-test('interpretar: o desvio vem do horário; sem horário, da coluna horas', () => {
+test('interpretar: o desvio vem dos blocos e do ajuste; sem blocos, da coluna horas', () => {
   const dados = interpretar({
     funcionarios: [
-      ['id', 'nome', 'pin', 'saldo_inicial', 'entrada', 'saida', 'pausa'],
-      ['vera', 'Vera', '1', 0, '9:30', '18:30', 1],
-      ['ana', 'Ana', '2', 0, '', '', ''],
+      ['id', 'nome', 'pin', 'saldo_inicial', 'entrada', 'saida', 'pausa', 'Entrada manhã', 'Saída manhã', 'Entrada tarde', 'Saída tarde'],
+      ['vera', 'Vera', '1', 0, '9:30', '18:30', 1, '09:30', '14:00', '15:00', '18:30'],
+      ['ana', 'Ana', '2', 0, '', '', '', '', '', '', ''],
+      ['rui', 'Rui', '3', 0, '8:00', '17:30', 1.5, '', '', '', ''],
     ],
     registos: [
-      ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota'],
-      ['2026-11-02', 'vera', '09:30', '19:00', '', ''],        // dia útil: +30min, pelo horário
-      ['2026-11-03', 'vera', '09:30', '18:30', 5, ''],         // o horário manda sobre a coluna horas
-      ['2026-11-04', 'vera', '', '', -8, 'Dia completo'],      // ausência registada pela APJM
-      ['2026-11-07', 'vera', '10:00', '14:00', '', 'Sábado'],  // fim de semana: horas trabalhadas
+      ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'ajuste', 'Observação'],
+      ['2026-11-02', 'vera', '', '', '', '', '09:30', '14:00', '15:00', '19:00', '', ''],        // dia útil: +30min, pelos blocos
+      ['2026-11-03', 'vera', '', '', 5, '', '09:30', '14:00', '15:00', '18:30', '-0,75', 'Saí mais cedo'], // os blocos e o ajuste mandam sobre a coluna horas
+      ['2026-11-04', 'vera', '', '', -8, 'Dia completo', '', '', '', '', '', ''],                // ausência registada pela APJM
+      ['2026-11-05', 'vera', '', '', '', '', '10:00', '14:00', '', '', '', ''],                  // só a manhã: −4h
+      ['2026-11-06', 'vera', '09:30', '19:00', '', '', '', '', '', '', '', ''],                  // registo antigo: entrada, saída e 1h de pausa
+      ['2026-11-07', 'vera', '', '', '', 'Sábado', '10:00', '14:00', '', '', '0,5', ''],         // fim de semana: horas trabalhadas
     ],
     feriados: [['data']],
   });
-  assert.deepEqual(dados.registos.map((r) => r.minutos), [30, 0, -480, 240]);
-  assert.deepEqual(dados.funcionarios[1].horario, { entrada: 9 * H, saida: 18 * H, pausa: H });
+  assert.deepEqual(dados.registos.map((r) => r.minutos), [30, -45, -480, -240, 30, 270]);
+  assert.deepEqual(dados.registos[1].observacao, 'Saí mais cedo');
+  assert.deepEqual(dados.registos[1].ajuste, -45);
+  assert.deepEqual(dados.registos[4].entrada, 9 * H + 30);
+  // Sem blocos na folha: o horário por omissão, ou o horário antigo com a pausa às 13:00
+  assert.deepEqual(dados.funcionarios[1].horario, { manha: bloco(9 * H, 13 * H), tarde: bloco(14 * H, 18 * H) });
+  assert.deepEqual(dados.funcionarios[2].horario, { manha: bloco(8 * H, 13 * H), tarde: bloco(14 * H + 30, 17 * H + 30) });
 });
 
 test('preenchimento noturno: acrescenta os dias úteis sem registo, uma só vez', async () => {
@@ -226,7 +303,7 @@ test('preenchimento noturno: acrescenta os dias úteis sem registo, uma só vez'
   assert.equal(await preencherDias(env, '2026-11-10'), 0);
   const { carregarDadosAtuais } = await import('../src/dados.js');
   const vera = (await carregarDadosAtuais(env)).registos.find((r) => r.funcionario === 'vera' && r.data === '2026-11-09');
-  assert.deepEqual([vera.entrada, vera.saida, vera.minutos], [9 * H + 30, 18 * H + 30, 0]);
+  assert.deepEqual([vera.manha, vera.tarde, vera.minutos], [bloco(9 * H + 30, 14 * H), bloco(15 * H, 18 * H + 30), 0]);
 });
 
 test('férias: o dia não conta para o saldo, não se altera na app e aparece inativo', () => {
@@ -254,10 +331,10 @@ test('férias: o dia não conta para o saldo, não se altera na app e aparece in
   ]);
 
   const h = historico(s, dados.feriados).find((x) => x.data === '2026-11-11');
-  assert.deepEqual([h.ferias, h.trabalhados, h.entrada, h.notas], [true, 0, null, ['Férias de verão']]);
+  assert.deepEqual([h.ferias, h.trabalhados, h.entrada, h.manha, h.notas], [true, 0, null, null, ['Férias de verão']]);
 
   assert.throws(
-    () => validarRegisto({ data: '2026-11-11', entrada: '09:30', saida: '18:30' }, '2026-11-12', new Set(), { ferias: true }),
+    () => validarRegisto({ data: '2026-11-11', manha: { entrada: '09:30', saida: '14:00' }, tarde: { entrada: '15:00', saida: '18:30' } }, '2026-11-12', new Set(), { ferias: true }),
     /férias/,
   );
 });

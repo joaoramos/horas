@@ -14,13 +14,26 @@ const FOLHAS = {
 
 // Colunas de cada separador, com o formato de cada uma ('@' = texto simples)
 const COLUNAS = {
-  funcionarios: [['id', '@'], ['nome', '@'], ['pin', '@'], ['saldo_inicial', '0.00'], ['ativo', '@'], ['entrada', '@'], ['saida', '@'], ['pausa', '0.00'], ['dias_ferias', '0.##']],
-  registos: [['data', '@'], ['funcionario', '@'], ['entrada', '@'], ['saida', '@'], ['horas', '0.00'], ['nota', '@'], ['atualizado_em', 'yyyy-mm-dd hh:mm'], ['tipo', '@']],
+  funcionarios: [
+    ['id', '@'], ['nome', '@'], ['pin', '@'], ['saldo_inicial', '0.00'], ['ativo', '@'], ['dias_ferias', '0.##'],
+    ['entrada_manha', '@'], ['saida_manha', '@'], ['entrada_tarde', '@'], ['saida_tarde', '@'],
+  ],
+  registos: [
+    ['data', '@'], ['funcionario', '@'], ['horas', '0.00'], ['nota', '@'], ['atualizado_em', 'yyyy-mm-dd hh:mm'], ['tipo', '@'],
+    ['entrada_manha', '@'], ['saida_manha', '@'], ['entrada_tarde', '@'], ['saida_tarde', '@'], ['ajuste', '0.00'], ['observacao', '@'],
+  ],
   feriados: [['data', '@'], ['descricao', '@']],
 };
 
-// Horário habitual das pessoas iniciais (o resto preenche-se na folha)
-const HORARIOS_INICIAIS = { mariana: ['09:00', '18:00', 1], vera: ['09:30', '18:30', 1] };
+// Horário habitual das pessoas iniciais: bloco da manhã e bloco da tarde (o resto preenche-se na folha)
+const HORARIOS_INICIAIS = { mariana: ['10:00', '14:00', '15:00', '19:00'], vera: ['09:30', '14:00', '15:00', '18:30'] };
+const BLOCOS = ['entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde'];
+// Máximos aceites ao gravar (a app valida as regras; aqui só se evitam valores absurdos)
+const MAX_HORAS_POR_DIA = 8; // "Tirar o dia" grava −8
+const MAX_AJUSTE = 7;
+const MAX_OBSERVACAO = 300;
+// Valores da coluna "tipo" que a app pode escrever (férias só se marcam na folha)
+const TIPOS_DA_APP = ['', 'folga', 'greve'];
 // Dias de férias por ano quando a folha ainda não os indica (o mínimo legal; ajustar na folha)
 const DIAS_FERIAS_POR_OMISSAO = 22;
 
@@ -32,8 +45,8 @@ function configurar() {
   const ss = SpreadsheetApp.getActive();
 
   criarFolha(ss, FOLHAS.funcionarios, COLUNAS.funcionarios, [
-    ['mariana', 'Mariana', '0000', 70, 'sim', '09:00', '18:00', 1, 22],
-    ['vera', 'Vera', '0000', 0, 'sim', '09:30', '18:30', 1, 22],
+    ['mariana', 'Mariana', '0000', 70, 'sim', 22, '10:00', '14:00', '15:00', '19:00'],
+    ['vera', 'Vera', '0000', 0, 'sim', 22, '09:30', '14:00', '15:00', '18:30'],
   ]);
   criarFolha(ss, FOLHAS.registos, COLUNAS.registos, []);
   criarFolha(ss, FOLHAS.feriados, COLUNAS.feriados, [
@@ -42,7 +55,7 @@ function configurar() {
     ['2026-12-25', 'Natal'],
   ]);
 
-  // Folhas criadas antes dos horários: acrescentar as colunas novas e o horário habitual
+  // Folhas antigas: acrescentar as colunas novas e o horário habitual (dois blocos)
   garantirColunas(ss.getSheetByName(FOLHAS.funcionarios), COLUNAS.funcionarios);
   garantirColunas(ss.getSheetByName(FOLHAS.registos), COLUNAS.registos);
   preencherHorariosIniciais(ss.getSheetByName(FOLHAS.funcionarios));
@@ -80,14 +93,16 @@ function garantirColunas(folha, colunas) {
 function preencherHorariosIniciais(folha) {
   const valores = folha.getDataRange().getValues();
   const cab = valores[0].map(normalizarCabecalho);
-  const [iId, iEntrada, iSaida, iPausa, iFerias] = ['id', 'entrada', 'saida', 'pausa', 'dias_ferias'].map((c) => cab.indexOf(c));
+  const iId = cab.indexOf('id');
+  const iFerias = cab.indexOf('dias_ferias');
+  const iBlocos = BLOCOS.map((c) => cab.indexOf(c));
   for (let i = 1; i < valores.length; i++) {
     if (valores[i][iId] !== '' && valores[i][iFerias] === '') folha.getRange(i + 1, iFerias + 1).setValue(DIAS_FERIAS_POR_OMISSAO);
     const horario = HORARIOS_INICIAIS[String(valores[i][iId]).trim().toLowerCase()];
     if (!horario) continue;
-    if (valores[i][iEntrada] === '') folha.getRange(i + 1, iEntrada + 1).setValue(horario[0]);
-    if (valores[i][iSaida] === '') folha.getRange(i + 1, iSaida + 1).setValue(horario[1]);
-    if (valores[i][iPausa] === '') folha.getRange(i + 1, iPausa + 1).setValue(horario[2]);
+    // Só se a pessoa ainda não tiver nenhum bloco preenchido
+    if (iBlocos.some((j) => valores[i][j] !== '')) continue;
+    iBlocos.forEach((j, k) => folha.getRange(i + 1, j + 1).setValue(horario[k]));
   }
 }
 
@@ -175,12 +190,20 @@ function textoDaData(v) {
   return v instanceof Date ? textoDeData(v) : String(v).trim();
 }
 
+/** Valida uma linha vinda do Worker e devolve as horas (desvio do dia) e o ajuste. */
 function validarLinha(p, maximo) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.data)) throw new Error('Data inválida');
-  if (!/^\d{2}:\d{2}$/.test(p.entrada) || !/^\d{2}:\d{2}$/.test(p.saida)) throw new Error('Horário inválido');
+  BLOCOS.forEach((c) => {
+    const v = p[c] === undefined ? '' : String(p[c]);
+    if (v !== '' && !/^\d{2}:\d{2}$/.test(v)) throw new Error('Horário inválido');
+  });
   const horas = Number(p.horas);
   if (!isFinite(horas) || Math.abs(horas) > maximo) throw new Error('Horas inválidas');
-  return horas;
+  const ajuste = Number(p.ajuste || 0);
+  if (!isFinite(ajuste) || Math.abs(ajuste) > MAX_AJUSTE) throw new Error('Ajuste inválido');
+  if (TIPOS_DA_APP.indexOf(p.tipo || '') < 0) throw new Error('Tipo inválido');
+  if (p.observacao !== undefined && String(p.observacao).length > MAX_OBSERVACAO) throw new Error('Observação demasiado longa');
+  return { horas, ajuste };
 }
 
 /** Abre o separador de registos (com as colunas necessárias) e devolve as posições de cada coluna. */
@@ -196,20 +219,29 @@ function chaveDaLinha(linha, col) {
   return String(linha[col.funcionario]).trim().toLowerCase() + ' ' + textoDaData(linha[col.data]);
 }
 
-function novaLinha(p, col, largura, horas) {
+/** Valores a escrever em cada coluna, para uma linha vinda do Worker. */
+function valoresDaLinha(p, valido) {
+  const v = { horas: valido.horas, ajuste: valido.ajuste || '', tipo: p.tipo || '', atualizado_em: new Date() };
+  BLOCOS.forEach((c) => { v[c] = p[c] || ''; });
+  if (p.observacao !== undefined) v.observacao = p.observacao;
+  return v;
+}
+
+function novaLinha(p, col, largura, valido) {
   const nova = new Array(largura).fill('');
   nova[col.data] = p.data;
   nova[col.funcionario] = p.funcionario;
-  nova[col.entrada] = p.entrada;
-  nova[col.saida] = p.saida;
-  nova[col.horas] = horas;
-  nova[col.atualizado_em] = new Date();
+  const v = valoresDaLinha(p, valido);
+  Object.keys(v).forEach((c) => { nova[col[c]] = v[c]; });
   return nova;
 }
 
-/** Grava a entrada, a saída e o desvio de uma pessoa num dia: atualiza a linha desse dia ou cria uma. */
+/**
+ * Grava um dia de uma pessoa (blocos da manhã e da tarde, ajuste, observação, desvio e tipo):
+ * atualiza a linha desse dia ou cria uma.
+ */
 function registar(p) {
-  const horas = validarLinha(p, 2);
+  const valido = validarLinha(p, MAX_HORAS_POR_DIA);
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -219,15 +251,15 @@ function registar(p) {
     for (let i = 1; i < valores.length; i++) {
       if (chaveDaLinha(valores[i], col) !== chave) continue;
       if (normalizarCabecalho(valores[i][col.tipo]) === 'ferias') throw new Error('Dia de férias: só pode ser alterado na folha');
-      // Mantém a nota e as outras colunas da linha
+      // Mantém a nota da APJM e as outras colunas da linha
       const n = i + 1;
-      folha.getRange(n, col.entrada + 1).setValue(p.entrada);
-      folha.getRange(n, col.saida + 1).setValue(p.saida);
-      folha.getRange(n, col.horas + 1).setValue(horas);
-      folha.getRange(n, col.atualizado_em + 1).setValue(new Date());
+      const v = valoresDaLinha(p, valido);
+      Object.keys(v).forEach((c) => folha.getRange(n, col[c] + 1).setValue(v[c]));
+      // Colunas antigas (uma só entrada e saída): ficam vazias para não se confundirem com os blocos
+      ['entrada', 'saida'].forEach((c) => { if (col[c] !== undefined) folha.getRange(n, col[c] + 1).setValue(''); });
       return;
     }
-    folha.appendRow(novaLinha(p, col, largura, horas));
+    folha.appendRow(novaLinha(p, col, largura, valido));
   } finally {
     lock.releaseLock();
   }

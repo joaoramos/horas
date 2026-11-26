@@ -1,5 +1,5 @@
-// Corre apps-script/Code.gs contra uma folha simulada, com a estrutura antiga (sem horários),
-// para garantir que a atualização da folha real e a escrita dos horários funcionam.
+// Corre apps-script/Code.gs contra uma folha simulada, com a estrutura antiga (sem os dois blocos),
+// para garantir que a atualização da folha real e a escrita dos blocos funcionam.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -88,19 +88,22 @@ function carregarScript(folhas, { fuso = 'Europe/Lisbon' } = {}) {
   };
 }
 
-// A folha tal como foi criada antes dos horários
+// A folha tal como estava antes dos dois blocos: uma entrada, uma saída e a pausa
 const folhaAntiga = () => ({
   Funcionarios: folhaSimulada('Funcionarios', [
-    ['id', 'nome', 'pin', 'saldo_inicial', 'ativo'],
-    ['mariana', 'Mariana', '1111', 0, 'sim'],
-    ['vera', 'Vera', '2222', 70, 'sim'],
+    ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias'],
+    ['mariana', 'Mariana', '1111', 0, 'sim', '09:00', '18:00', 1, 22],
+    ['vera', 'Vera', '2222', 70, 'sim', '09:30', '18:30', 1, 22],
   ]),
   Registos: folhaSimulada('Registos', [
-    ['data', 'funcionario', 'horas', 'nota', 'atualizado_em'],
-    ['2026-10-27', 'vera', -2, 'Consulta', ''],
+    ['data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'atualizado_em', 'tipo'],
+    ['2026-10-27', 'vera', '', '', -2, 'Consulta', '', ''],
+    ['2026-10-28', 'vera', '09:30', '19:30', 1, '', '', ''],
   ]),
   Feriados: folhaSimulada('Feriados', [['data', 'descricao'], ['2026-12-08', 'Imaculada Conceição']]),
 });
+
+const BLOCOS_VERA = { entrada_manha: '09:30', saida_manha: '14:00', entrada_tarde: '15:00', saida_tarde: '18:30' };
 
 test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha antiga', () => {
   const folhas = folhaAntiga();
@@ -108,56 +111,97 @@ test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha a
   script.configurar();
   script.configurar(); // pode correr-se outra vez sem efeitos
 
-  assert.deepEqual(folhas.Funcionarios.dados[0], ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias']);
-  assert.deepEqual(folhas.Funcionarios.dados[1].slice(5), ['09:00', '18:00', 1, 22]);
-  assert.deepEqual(folhas.Funcionarios.dados[2].slice(5), ['09:30', '18:30', 1, 22]);
-  assert.deepEqual(folhas.Registos.dados[0], ['data', 'funcionario', 'horas', 'nota', 'atualizado_em', 'entrada', 'saida', 'tipo']);
+  assert.deepEqual(folhas.Funcionarios.dados[0], [
+    'id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias',
+    'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde',
+  ]);
+  // O horário habitual passa a ter dois blocos
+  assert.deepEqual(folhas.Funcionarios.dados[1].slice(9), ['10:00', '14:00', '15:00', '19:00']);
+  assert.deepEqual(folhas.Funcionarios.dados[2].slice(9), ['09:30', '14:00', '15:00', '18:30']);
+  assert.deepEqual(folhas.Registos.dados[0], [
+    'data', 'funcionario', 'entrada', 'saida', 'horas', 'nota', 'atualizado_em', 'tipo',
+    'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'ajuste', 'observacao',
+  ]);
   // Os dados existentes ficam intactos
-  assert.deepEqual(folhas.Registos.dados[1].slice(0, 4), ['2026-10-27', 'vera', -2, 'Consulta']);
+  assert.deepEqual(folhas.Registos.dados[1].slice(0, 6), ['2026-10-27', 'vera', '', '', -2, 'Consulta']);
   assert.equal(folhas.Funcionarios.dados[2][3], 70);
   // Usa o separador de feriados existente, sem criar outro
   assert.deepEqual(Object.keys(folhas).sort(), ['Feriados', 'Funcionarios', 'Registos']);
+
+  // Um bloco já preenchido à mão não é substituído
+  folhas.Funcionarios.dados[1][9] = '09:00';
+  script.configurar();
+  assert.deepEqual(folhas.Funcionarios.dados[1].slice(9), ['09:00', '14:00', '15:00', '19:00']);
+
+  // Os registos antigos continuam a ser lidos pelo Worker
+  const dados = interpretar(script.get().dados);
+  assert.deepEqual(dados.registos.map((x) => [x.data, x.minutos]), [['2026-10-27', -120], ['2026-10-28', 60]]);
 });
 
-test('Apps Script: registar e preencher escrevem os horários nas colunas certas', () => {
+test('Apps Script: registar e preencher escrevem os blocos nas colunas certas', () => {
   const folhas = folhaAntiga();
   const script = carregarScript(folhas);
   // Sem correr configurar: registar acrescenta as colunas que faltam
-  let r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-02', entrada: '09:30', saida: '19:00', horas: 0.5 });
+  let r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-02', ...BLOCOS_VERA, saida_tarde: '19:00', ajuste: 0, horas: 0.5, tipo: '', observacao: '' });
   assert.equal(r.ok, true, r.erro);
-  r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-02', entrada: '10:00', saida: '19:00', horas: 0 });
+  r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-02', ...BLOCOS_VERA, entrada_manha: '10:00', ajuste: 0.25, horas: -0.25, tipo: '', observacao: 'Reunião depois do fecho' });
   assert.equal(r.ok, true, r.erro);
   r = script.post({
     acao: 'preencher',
     linhas: [
-      { funcionario: 'vera', data: '2026-11-02', entrada: '09:30', saida: '18:30', horas: 0 }, // já existe
-      { funcionario: 'vera', data: '2026-11-03', entrada: '09:30', saida: '18:30', horas: 0 },
+      { funcionario: 'vera', data: '2026-11-02', ...BLOCOS_VERA, ajuste: 0, horas: 0, tipo: '' }, // já existe
+      { funcionario: 'vera', data: '2026-11-03', ...BLOCOS_VERA, ajuste: 0, horas: 0, tipo: '' },
     ],
   });
   assert.equal(r.ok, true, r.erro);
 
-  const linhas = folhas.Registos.dados.filter((l) => l[0] === '2026-11-02' || l[0] === '2026-11-03');
-  assert.equal(linhas.length, 2);
   const cab = folhas.Registos.dados[0];
   const linha = (data) => Object.fromEntries(cab.map((c, i) => [c, folhas.Registos.dados.find((l) => l[0] === data)[i]]));
-  assert.deepEqual([linha('2026-11-02').entrada, linha('2026-11-02').saida, linha('2026-11-02').horas], ['10:00', '19:00', 0]);
-  assert.deepEqual([linha('2026-11-03').entrada, linha('2026-11-03').saida], ['09:30', '18:30']);
+  assert.equal(folhas.Registos.dados.filter((l) => l[0] === '2026-11-02' || l[0] === '2026-11-03').length, 2);
+  const dia2 = linha('2026-11-02');
+  assert.deepEqual(
+    [dia2.entrada_manha, dia2.saida_manha, dia2.entrada_tarde, dia2.saida_tarde, dia2.ajuste, dia2.horas, dia2.observacao],
+    ['10:00', '14:00', '15:00', '18:30', 0.25, -0.25, 'Reunião depois do fecho'],
+  );
+  assert.deepEqual([linha('2026-11-03').entrada_manha, linha('2026-11-03').saida_tarde], ['09:30', '18:30']);
+
+  // Tirar o dia: os blocos ficam vazios, o tipo fica "greve" e a nota da APJM mantém-se
+  folhas.Registos.dados.find((l) => l[0] === '2026-11-03')[cab.indexOf('nota')] = 'Nota da APJM';
+  r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-03', ajuste: 0, horas: -8, tipo: 'greve', observacao: 'Greve geral' });
+  assert.equal(r.ok, true, r.erro);
+  assert.deepEqual(
+    [linha('2026-11-03').entrada_manha, linha('2026-11-03').horas, linha('2026-11-03').tipo, linha('2026-11-03').nota, linha('2026-11-03').observacao],
+    ['', -8, 'greve', 'Nota da APJM', 'Greve geral'],
+  );
+  // Anular: volta ao horário e o tipo fica vazio
+  r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-03', ...BLOCOS_VERA, ajuste: 0, horas: 0, tipo: '', observacao: '' });
+  assert.equal(r.ok, true, r.erro);
+  assert.deepEqual([linha('2026-11-03').entrada_manha, linha('2026-11-03').tipo], ['09:30', '']);
+
+  // Um registo antigo alterado na app perde a entrada e a saída antigas
+  r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-10-28', ...BLOCOS_VERA, ajuste: 0, horas: 0, tipo: '' });
+  assert.equal(r.ok, true, r.erro);
+  assert.deepEqual([linha('2026-10-28').entrada, linha('2026-10-28').saida, linha('2026-10-28').entrada_manha], ['', '', '09:30']);
 
   // Um dia marcado como férias na folha não se altera pela app
-  const iTipo = folhas.Registos.dados[0].indexOf('tipo');
-  folhas.Registos.dados.find((l) => l[0] === '2026-11-03')[iTipo] = 'Férias';
-  const recusado = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-03', entrada: '09:30', saida: '19:30', horas: 1 });
+  folhas.Registos.dados.find((l) => l[0] === '2026-11-03')[cab.indexOf('tipo')] = 'Férias';
+  const recusado = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-03', ...BLOCOS_VERA, horas: 0, tipo: '' });
   assert.deepEqual([recusado.ok, /férias/.test(recusado.erro)], [false, true]);
 
   // Valores inválidos são recusados
-  assert.equal(script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-04', entrada: '9h', saida: '18:30', horas: 0 }).ok, false);
-  assert.equal(script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-04', entrada: '09:30', saida: '23:30', horas: 4 }).ok, false);
+  const invalido = (extra) => script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-04', ...BLOCOS_VERA, horas: 0, tipo: '', ...extra }).ok;
+  assert.equal(invalido({ entrada_manha: '9h' }), false);
+  assert.equal(invalido({ horas: 9 }), false);
+  assert.equal(invalido({ ajuste: 7.5 }), false);
+  assert.equal(invalido({ tipo: 'férias' }), false);
+  assert.equal(invalido({ observacao: 'x'.repeat(301) }), false);
+  assert.equal(invalido({ ajuste: 7, horas: 7 }), true);
 
   // E o Worker lê o resultado como esperado
   const dados = interpretar(script.get().dados);
   assert.deepEqual([...dados.feriados], [['2026-12-08', 'Imaculada Conceição']]);
   const vera = dados.registos.filter((x) => x.funcionario === 'vera').map((x) => [x.data, x.minutos]);
-  assert.deepEqual(vera, [['2026-10-27', -120], ['2026-11-02', 0], ['2026-11-03', 0]]);
+  assert.deepEqual(vera, [['2026-10-27', -120], ['2026-10-28', 0], ['2026-11-02', -15], ['2026-11-03', 0], ['2026-11-04', 7 * 60]]);
   assert.equal(dados.registos.find((x) => x.data === '2026-11-03').ferias, true);
 });
 
@@ -184,7 +228,7 @@ test('Apps Script: datas guardadas como datas numa folha com outro fuso horário
   assert.deepEqual([...dados.feriados.keys()], ['2026-12-08']);
 
   // Escrita: alterar o dia 6 atualiza a linha do dia 6, e não a do dia 5
-  const r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-06', entrada: '09:30', saida: '20:00', horas: 1.5 });
+  const r = script.post({ acao: 'registar', funcionario: 'vera', data: '2026-11-06', ...BLOCOS_VERA, saida_tarde: '20:00', horas: 1.5, tipo: '' });
   assert.equal(r.ok, true, r.erro);
   dados = interpretar(script.get().dados);
   assert.deepEqual(dados.registos.map((x) => [x.data, x.minutos]), [['2026-11-05', 60], ['2026-11-06', 90]]);
