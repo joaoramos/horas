@@ -18,6 +18,14 @@ Browser ──▶ Cloudflare Worker (horas.jardimdamata.pt) ──▶ Google App
 - **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css`, os temas e o seletor de temas), copiados sem alterações.
   `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que todos os temas se apliquem.
 
+### Página de cada pessoa
+
+Em "Registar horas", cada semana ocupa a largura toda e mostra os dias numa tabela, com colunas para a entrada e a saída
+da manhã, a entrada e a saída da tarde, o ajuste extraordinário, o trabalho do dia, o balanço e a observação.
+Ao tocar num dia, abre-se por baixo o formulário para o alterar. As colunas adaptam-se à largura de cada semana
+(container queries em `public/styles.css`): num ecrã estreito a observação passa para baixo de cada dia, e no telemóvel
+a tabela fica com dia, manhã, tarde e balanço (entrada por cima da saída), com o ajuste e a observação por baixo.
+
 ### App no ecrã principal
 
 Cada pessoa abre o seu endereço (ex.: https://horas.jardimdamata.pt/mariana), introduz o PIN e adiciona a página ao ecrã principal:

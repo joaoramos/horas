@@ -416,14 +416,6 @@ function opcoesDeAjuste(atual, regras) {
 
 const textoBloco = (b) => (b ? `${b.entrada}–${b.saida}` : '—');
 
-/** Resumo de um dia: os dois blocos (ou o horário antigo) e o ajuste. */
-function resumoDoDia(dia) {
-  if (dia.diaTirado) return MOTIVOS[dia.diaTirado];
-  const partes = dia.entrada && !dia.manha && !dia.tarde ? [`${dia.entrada}–${dia.saida}`] : [textoBloco(dia.manha), textoBloco(dia.tarde)];
-  if (dia.ajuste) partes.push(`ajuste ${horas(dia.ajuste)}`);
-  return partes.join(' · ');
-}
-
 function editorDoDia(dia, d) {
   const longo = diaLongo(dia.data);
   const id = `dia-${dia.data}`;
@@ -455,8 +447,10 @@ function editorDoDia(dia, d) {
             <span aria-hidden="true">–</span>
             <select data-campo="tarde-saida" aria-label="Saída da tarde em ${longo}">${opcoesDeHora(dia.tarde?.saida, d.regras)}</select>
           </fieldset>
-          <label class="campo" for="${id}-ajuste">Ajuste extraordinário</label>
-          <select id="${id}-ajuste" data-campo="ajuste">${opcoesDeAjuste(dia.ajuste, d.regras)}</select>
+          <div class="bloco bloco-ajuste">
+            <label class="campo" for="${id}-ajuste">Ajuste extraordinário</label>
+            <select id="${id}-ajuste" data-campo="ajuste">${opcoesDeAjuste(dia.ajuste, d.regras)}</select>
+          </div>
           ${observacao}
           <p class="dia-calculo" data-calculo aria-live="polite"></p>
           <div class="dia-acoes">
@@ -466,51 +460,92 @@ function editorDoDia(dia, d) {
         </form>`;
 }
 
+const DIAS_DA_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** Célula de um bloco na tabela da semana: entrada e saída em colunas separadas. */
+function celulaBloco(nome, b) {
+  const rotulo = `<span class="visually-hidden">${nome}: </span>`;
+  if (!b) return `<span class="c c-bloco c-${nome.toLowerCase()}">${rotulo}<span class="c-vazio">—</span></span>`;
+  return `<span class="c c-bloco c-${nome.toLowerCase()}">${rotulo}<span>${b.entrada}</span><span class="visually-hidden"> a </span><span>${b.saida}</span></span>`;
+}
+
+/** Cabeçalho da tabela da semana (os leitores de ecrã leem os rótulos escondidos em cada célula). */
+const CABECALHO_SEMANA = `
+      <div class="linha linha-cab" aria-hidden="true">
+        <span class="c c-dia">Dia</span>
+        <span class="c c-bloco c-manha"><span class="c-bloco-nome">Manhã</span><span>Entrada</span><span>Saída</span></span>
+        <span class="c c-bloco c-tarde"><span class="c-bloco-nome">Tarde</span><span>Entrada</span><span>Saída</span></span>
+        <span class="c c-ajuste">Ajuste</span>
+        <span class="c c-trabalho">Trabalho</span>
+        <span class="c c-balanco">Balanço</span>
+        <span class="c c-obs">Observação</span>
+      </div>`;
+
+/** Uma linha da tabela da semana: o dia, os dois blocos, o ajuste, o trabalho, o balanço e a observação. */
+function linhaDoDia(dia, d, quando) {
+  const data = paraDate(dia.data);
+  const etiquetas = [
+    quando === 'hoje' ? '<span class="etiqueta etiqueta-suave">hoje</span>' : '',
+    dia.apjm ? '<span class="etiqueta etiqueta-suave">APJM</span>' : '',
+  ].join('');
+  const celulaDia = `<span class="c c-dia"><b>${DIAS_DA_SEMANA[data.getUTCDay()]}</b> ${data.getUTCDate()} ${MESES[data.getUTCMonth()]}${etiquetas}</span>`;
+  const balanco = (texto) => `<span class="c c-balanco"><span class="visually-hidden">Balanço: </span>${texto}</span>`;
+  const obs = dia.observacao ? `<span class="c c-obs"><span class="visually-hidden">Observação: </span>${esc(dia.observacao)}</span>` : '';
+  const especial = (texto) => `<span class="c c-especial">${texto}</span>`;
+
+  if (dia.ferias) return celulaDia + especial('Férias') + balanco('—') + obs;
+  if (dia.feriado) {
+    const nome = dia.nomeFeriado ? ` · ${esc(dia.nomeFeriado)}` : '';
+    const apjm = dia.minutos ? ` · ${horas(dia.minutos, { sinal: false })} registadas pela APJM` : '';
+    return celulaDia + especial(`Feriado${nome}${apjm}`) + balanco(dia.minutos ? horas(dia.minutos) : '—') + obs;
+  }
+  if (dia.diaTirado) {
+    return celulaDia + especial(`<b>${MOTIVOS[dia.diaTirado]}</b> · dia tirado com 8h do saldo`) + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
+  }
+  if (dia.apjm && !(dia.registado && dia.minutos > -d.regras.minutosPorDia)) {
+    return celulaDia + especial('Ausência registada pela APJM') + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
+  }
+  const blocos = dia.entrada && !dia.manha && !dia.tarde
+    ? especial(`${dia.entrada}–${dia.saida} <small>registo antigo</small>`)
+    : celulaBloco('Manhã', dia.manha) + celulaBloco('Tarde', dia.tarde)
+      + `<span class="c c-ajuste${dia.ajuste ? '' : ' c-zero'}"><span class="c-rotulo">Ajuste </span>${dia.ajuste ? horas(dia.ajuste) : '—'}</span>`
+      + `<span class="c c-trabalho"><span class="visually-hidden">Trabalho: </span>${horas(d.regras.minutosPorDia + dia.minutos, { sinal: false })}</span>`;
+  return celulaDia + blocos + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
+}
+
 function semana(s, d) {
   const total = s.dias.reduce((t, dia) => t + dia.minutos, 0);
   const dias = s.dias.map((dia) => {
     const quando = dia.data < d.hoje ? 'passado' : dia.data === d.hoje ? 'hoje' : 'futuro';
-    const nome = `<span class="dia-nome">${diaCurto(dia.data)}${quando === 'hoje' ? ' <span class="etiqueta etiqueta-suave">hoje</span>' : ''}</span>`;
-    const obs = dia.observacao ? `<small class="dia-obs">${esc(dia.observacao)}</small>` : '';
-    let valor;
-    if (dia.ferias) {
-      // Férias marcadas pela APJM na folha: dia sem trabalho, que não se pode alterar
-      valor = '<span class="dia-feriado">Férias</span>';
-    } else if (dia.feriado) {
-      // Feriado: dia sem trabalho, que não se pode alterar (só a APJM pode registar trabalho na folha)
-      valor = `<span class="dia-feriado">Feriado${dia.nomeFeriado ? `<small>${esc(dia.nomeFeriado)}</small>` : ''}${
-        dia.minutos ? `<small>${horas(dia.minutos)} registadas pela APJM</small>` : ''}</span>`;
-    } else if (dia.apjm) {
-      valor = `<span class="dia-apjm">${dia.registado && dia.minutos > -d.regras.minutosPorDia ? `${resumoDoDia(dia)} · ` : ''}${horas(dia.minutos)}<small>APJM</small></span>`;
-    } else if (dia.editavel) {
+    const inativo = dia.feriado || dia.ferias;
+    const classes = `dia dia-${quando}${inativo ? ' dia-inativo' : ''}${dia.diaTirado ? ' dia-tirado' : ''}`;
+    const estado = `<span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>`;
+    if (dia.editavel) {
       return `
-      <li class="dia dia-${quando}${dia.diaTirado ? ' dia-tirado' : ''}">
+      <li class="${classes}">
         <details class="dia-editar" data-dia="${dia.data}">
-          <summary>
-            ${nome}
-            <span class="dia-resumo">${esc(resumoDoDia(dia))} <b>${horas(dia.minutos)}</b></span>
-            ${obs}
-          </summary>
+          <summary class="linha">${linhaDoDia(dia, d, quando)}<span class="c-seta" aria-hidden="true">›</span></summary>
           ${editorDoDia(dia, d)}
         </details>
-        <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
+        ${estado}
       </li>`;
-    } else valor = `<span class="dia-fixo">${esc(resumoDoDia(dia))} · ${horas(dia.minutos)}</span>`;
-    const inativo = dia.feriado || dia.ferias;
+    }
     return `
-      <li class="dia dia-${quando}${inativo ? ' dia-inativo' : ''}${dia.diaTirado ? ' dia-tirado' : ''}"${inativo ? ' aria-disabled="true"' : ''}>
-        ${nome}
-        ${valor}
-        ${obs}
-        <span class="dia-estado" data-estado="${dia.data}" aria-live="polite"></span>
+      <li class="${classes}"${inativo ? ' aria-disabled="true"' : ''}>
+        <div class="linha">${linhaDoDia(dia, d, quando)}</div>
+        ${estado}
       </li>`;
   }).join('');
 
   return `
     <section class="semana cartao${s.atual ? ' semana-atual' : ''}">
       <h3>Semana de ${formatar(s.segunda, { day: 'numeric', month: 'long' })}${s.atual ? ' <span class="etiqueta etiqueta-suave">esta semana</span>' : ''}</h3>
-      <ul>${dias}</ul>
-      <p class="semana-total">Total da semana: <strong>${horas(total)}</strong></p>
+      <div class="semana-tabela">
+        ${CABECALHO_SEMANA}
+        <ul>${dias}</ul>
+        <p class="linha linha-total"><span class="c c-total-rotulo">Total da semana</span><span class="c c-balanco"><strong>${horas(total)}</strong></span></p>
+      </div>
     </section>`;
 }
 

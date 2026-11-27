@@ -24,6 +24,7 @@ Esta web app permite aos funcionários registar as suas horas de trabalho, e ger
 - Cada funcionário consegue deixar uma observação em cada dia (até 300 caracteres)
 - Cada funcionário consegue carregar em "Tirar o dia" para usar o saldo flexível (8h) e tirar o dia, de folga ou de greve, com aprovação prévia do executivo. Antes de confirmar, uma janela mostra o efeito no saldo e pede que confirme que tem essa aprovação
 - Ao final de cada dia útil, o balanço de horas é atualizado subtraindo ou adicionando as horas trabalhadas
+- Cada funcionário vê cada semana numa tabela larga, com colunas para a entrada e a saída da manhã e da tarde, o ajuste, o trabalho, o balanço e a observação de cada dia; no telemóvel, a tabela fica mais compacta
 - Cada funcionário consegue ver o seu histórico de horas trabalhadas
 - Cada funcionário consegue ver as regras de gestão e compensação de horas de trabalho
 - Cada funcionário consegue ver quando está em incomprimento

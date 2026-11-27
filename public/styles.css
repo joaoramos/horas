@@ -110,51 +110,107 @@ small { display: block; font-size: var(--text-sm); color: var(--color-text-muted
 
 /* ---------------------------------------------------------------- registar horas */
 
-.semanas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)); gap: var(--space-4); text-align: left; }
-.semana { padding: var(--space-4); }
+/* Cada semana ocupa a largura toda e mostra os dias numa tabela: dia, entrada e saída de cada bloco,
+   ajuste, trabalho, balanço e observação. As colunas adaptam-se à largura do cartão (container queries):
+   - larga: tudo em colunas, com a observação na última;
+   - média: tudo em colunas, e a observação por baixo de cada dia;
+   - estreita (telemóvel): dia, manhã, tarde e balanço, com a entrada por cima da saída; o ajuste e a observação vão por baixo. */
+.semanas { display: grid; gap: var(--space-5); max-width: 72rem; text-align: left; }
+.semana { padding: var(--space-4) var(--space-5); container-type: inline-size; }
 .semana-atual { border-color: var(--color-accent); border-width: 2px; }
 .semana ul { list-style: none; margin: 0; padding: 0; }
-.semana-total { margin-top: var(--space-2); font-size: var(--text-sm); }
 
-.dia {
+.linha {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
+  grid-template-columns:
+    [dia] 6.5rem [manha] 7rem [tarde] 7rem [ajuste] 4.5rem [trabalho] 4.5rem [balanco] 4.5rem [obs] minmax(6rem, 1fr) [seta] 1rem [fim];
   column-gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 15%, transparent);
+  row-gap: var(--space-1);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
 }
-.dia-nome { font-size: var(--text-sm); }
-.dia-passado .dia-nome { color: var(--color-text-muted); }
-.dia-campos {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin-top: var(--space-1);
-}
-.dia-desvio { margin-left: auto; font-size: var(--text-sm); font-weight: var(--weight-bold); font-variant-numeric: lining-nums tabular-nums; }
-.dia-fixo { font-size: var(--text-sm); color: var(--color-text-muted); font-variant-numeric: lining-nums tabular-nums; }
-/* Feriados: linhas inativas, sem controlos */
+.c { min-width: 0; }
+.c-dia { grid-column: dia; }
+.c-manha { grid-column: manha; }
+.c-tarde { grid-column: tarde; }
+.c-ajuste { grid-column: ajuste; text-align: right; }
+.c-trabalho { grid-column: trabalho; text-align: right; }
+.c-balanco { grid-column: balanco; text-align: right; white-space: nowrap; }
+.c-obs { grid-column: obs; font-style: italic; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.c-seta { grid-column: seta; grid-row: 1; color: var(--color-text-muted); transition: transform 0.15s; text-align: center; }
+.c-especial { grid-column: manha / balanco; }
+.c-especial small { display: inline; font-size: var(--text-xs); }
+.c-total-rotulo { grid-column: dia / balanco; }
+.c-rotulo { display: none; }
+.c-zero, .c-vazio { color: var(--color-text-muted); }
+
+/* Cada bloco tem duas colunas: entrada e saída */
+.c-bloco { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--space-2); }
+.c-bloco > .c-vazio { grid-column: 1 / -1; }
+.c-dia .etiqueta { margin-left: var(--space-1); }
+
+.linha-cab { padding-bottom: var(--space-1); border-bottom: 2px solid var(--color-text); font-size: var(--text-xs); font-weight: var(--weight-bold); align-items: end; }
+.linha-cab .c-bloco-nome { grid-column: 1 / -1; padding-bottom: 2px; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 25%, transparent); }
+.linha-cab .c-obs { font-style: normal; color: inherit; }
+.linha-total { margin: 0; border-top: 2px solid var(--color-text); }
+
+.dia { border-bottom: 1px solid color-mix(in srgb, var(--color-text) 15%, transparent); }
+.dia-passado .c-dia { color: var(--color-text-muted); }
+.dia-hoje { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.dia-tirado .c-especial { color: var(--color-text); }
+/* Feriados e férias: linhas inativas, sem controlos */
 .dia-inativo {
-  margin-inline: calc(-1 * var(--space-2));
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-panel);
+  color: var(--color-text-muted);
   background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--color-text) 6%, transparent) 6px 12px);
 }
-.dia-inativo .dia-nome { color: var(--color-text-muted); }
-.dia-feriado { text-align: right; font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--color-text-muted); }
-.dia-feriado small { font-size: var(--text-xs); font-weight: var(--weight-regular); }
 tr.linha-inativa td {
   color: var(--color-text-muted);
   background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--color-text) 6%, transparent) 6px 12px);
 }
-.dia-apjm { text-align: right; font-size: var(--text-sm); font-weight: var(--weight-bold); font-variant-numeric: lining-nums tabular-nums; }
-.dia-apjm small { font-size: var(--text-xs); font-weight: var(--weight-regular); }
-.dia-estado { grid-column: 1 / -1; font-size: var(--text-xs); color: var(--color-text-muted); }
+.dia-estado { display: block; padding: 0 var(--space-2) var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
 .dia-estado:empty { display: none; }
 .dia-estado-erro { color: var(--color-link); font-weight: var(--weight-bold); }
+
+/* Cada dia editável é uma linha que abre o formulário com os dois blocos, o ajuste, a observação e "Tirar o dia" */
+.dia-editar summary { cursor: pointer; list-style: none; border-radius: var(--radius-panel); }
+.dia-editar summary::-webkit-details-marker { display: none; }
+.dia-editar summary:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.dia-editar[open] summary { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.dia-editar[open] .c-seta { transform: rotate(90deg); }
+
+/* Largura média: a observação passa para baixo de cada dia */
+@container (max-width: 52rem) {
+  .linha {
+    grid-template-columns:
+      [dia] 6.5rem [manha] 7rem [tarde] 7rem [ajuste] 4.5rem [trabalho] 4.5rem [balanco] minmax(4.5rem, 1fr) [seta] 1rem [fim];
+  }
+  .c-obs { grid-column: dia / seta; font-size: var(--text-xs); }
+  .linha-cab .c-obs { display: none; }
+}
+
+/* Estreita (telemóvel): dia, manhã, tarde e balanço */
+@container (max-width: 36rem) {
+  .semana { padding: var(--space-3); }
+  .linha {
+    grid-template-columns: [dia] minmax(4rem, 1.1fr) [manha] 1fr [tarde] 1fr [balanco] auto [seta] 0.75rem [fim];
+    column-gap: var(--space-2);
+    padding-inline: var(--space-1);
+  }
+  .c-dia b { display: block; }
+  .c-dia .etiqueta { margin: 2px 0 0; display: table; }
+  .c-bloco { grid-template-columns: 1fr; }
+  .linha-cab .c-bloco > :not(.c-bloco-nome) { display: none; }
+  .linha-cab .c-bloco-nome { border: 0; padding: 0; }
+  .c-trabalho, .linha-cab .c-ajuste { display: none; }
+  /* O ajuste e a observação passam para as linhas seguintes, depois das restantes células */
+  .c-ajuste { grid-column: dia / seta; order: 1; text-align: left; font-size: var(--text-xs); }
+  .c-obs { order: 2; }
+  .c-ajuste.c-zero { display: none; }
+  .c-rotulo { display: inline; }
+  .c-especial { grid-column: manha / balanco; }
+}
 
 .dia select {
   min-height: 2.5rem;
@@ -168,24 +224,6 @@ tr.linha-inativa td {
   font-size: var(--text-sm);
   font-variant-numeric: lining-nums tabular-nums;
 }
-
-/* Cada dia editável abre um formulário com os dois blocos, o ajuste, a observação e "Tirar o dia" */
-.dia-editar { grid-column: 1 / -1; }
-.dia-editar summary {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  column-gap: var(--space-2);
-  cursor: pointer;
-  list-style: none;
-}
-.dia-editar summary::-webkit-details-marker { display: none; }
-.dia-editar summary::after { content: "›"; grid-column: 3; grid-row: 1; color: var(--color-text-muted); transition: transform 0.15s; }
-.dia-editar[open] summary::after { transform: rotate(90deg); }
-.dia-resumo { text-align: right; font-size: var(--text-sm); color: var(--color-text-muted); font-variant-numeric: lining-nums tabular-nums; }
-.dia-resumo b { margin-left: var(--space-1); color: var(--color-text); }
-.dia-obs { grid-column: 1 / -1; font-size: var(--text-xs); font-style: italic; overflow-wrap: anywhere; }
-.dia-tirado .dia-resumo { color: var(--color-text); font-weight: var(--weight-bold); }
 
 .dia-form {
   display: grid;
@@ -210,6 +248,13 @@ tr.linha-inativa td {
   font: inherit;
   font-size: var(--text-sm);
   resize: vertical;
+}
+.bloco-ajuste .campo { display: inline-block; margin: 0 var(--space-2) 0 0; }
+/* Com espaço, manhã, tarde e ajuste ficam lado a lado, com o nome por cima */
+.bloco legend, .bloco-ajuste .campo { float: none; display: block; width: 100%; margin: 0 0 var(--space-1); padding: 0; }
+@container (min-width: 36rem) {
+  .dia-form { grid-template-columns: auto auto auto 1fr; column-gap: var(--space-6); margin-inline: var(--space-2); }
+  .dia-form > :not(.bloco) { grid-column: 1 / -1; }
 }
 .dia-calculo { margin: 0; font-size: var(--text-sm); }
 .dia-calculo.dia-estado-erro { font-weight: var(--weight-regular); }
