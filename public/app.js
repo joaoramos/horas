@@ -37,7 +37,7 @@ async function api(caminho, corpo) {
       ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) }
       : undefined);
   } catch {
-    throw Object.assign(new Error('Sem ligação à internet. Tente de novo quando tiver rede.'), { estado: 0 });
+    throw Object.assign(new Error('Sem ligação à internet. Tenta de novo quando tiveres rede.'), { estado: 0 });
   }
   const dados = await resposta.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
   if (!resposta.ok) throw Object.assign(new Error(dados.erro || 'Erro inesperado.'), { estado: resposta.status });
@@ -84,15 +84,6 @@ function mostrar({ manterPosicao = false } = {}) {
 }
 
 // ---------------------------------------------------------------- app no ecrã principal
-
-/** A barra de estado do telemóvel acompanha a cor de fundo do tema escolhido. */
-function atualizarCorDaBarra() {
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = getComputedStyle(document.body).backgroundColor;
-}
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'theme-switcher') atualizarCorDaBarra();
-});
 
 // Na app instalada não há botão de recarregar: ao voltar a ela depois de algum tempo,
 // os dados são atualizados (o dia pode até ter mudado).
@@ -179,7 +170,7 @@ function cartaoFerias(f) {
       <div class="saldo cartao">
         <dt>Saldo de férias</dt>
         <dd>${f.disponiveis === null
-          ? `<strong>—</strong><span>A APJM ainda não indicou quantos dias de férias tem em ${f.ano}.</span>`
+          ? `<strong>—</strong><span>A APJM ainda não indicou quantos dias de férias tens em ${f.ano}.</span>`
           : `<strong>${dias(f.disponiveis)}</strong><span>${f.disponiveis === 1 ? 'disponível' : 'disponíveis'}</span>`}
           <span class="saldo-previsto">${detalhe}</span>
           ${proximos.length ? `<span class="saldo-previsto">Marcados: ${proximos.join(', ')}${marcados > proximos.length ? '…' : ''}</span>` : ''}</dd>
@@ -192,12 +183,12 @@ function avisosLimites(r) {
   const avisos = [];
   const fecho = diaMes(l.proximoFecho);
   if (l.estado === 'acima') {
-    avisos.push(['erro', `<strong>Acima do limite.</strong> Tem ${horas(l.perdidasNoFecho, { sinal: false })} acima de ${horas(l.positivo)}. Se não as gozar até ${fecho}, essas horas perdem-se.`]);
+    avisos.push(['erro', `<strong>Acima do limite.</strong> Tens ${horas(l.perdidasNoFecho, { sinal: false })} acima de ${horas(l.positivo)}. Se não as gozares até ${fecho}, essas horas perdem-se.`]);
   } else if (l.estado === 'abaixo') {
-    avisos.push(['erro', `<strong>Abaixo do limite.</strong> Tem ${horas(l.aDescontarNoFecho, { sinal: false })} abaixo de ${horas(l.negativo)}. Se não as compensar até ${fecho}, serão descontadas no salário.`]);
+    avisos.push(['erro', `<strong>Abaixo do limite.</strong> Tens ${horas(l.aDescontarNoFecho, { sinal: false })} abaixo de ${horas(l.negativo)}. Se não as compensares até ${fecho}, serão descontadas no salário.`]);
   } else if (l.estado === 'perto') {
     const limite = l.previsto > 0 ? l.positivo : l.negativo;
-    avisos.push(['', `<strong>Perto do limite.</strong> O saldo com limites está em ${horas(l.previsto)}, perto de ${horas(limite)}. Tente aproximá-lo de zero.`]);
+    avisos.push(['', `<strong>Perto do limite.</strong> O saldo com limites está em ${horas(l.previsto)}, perto de ${horas(limite)}. Tenta aproximá-lo de zero.`]);
   }
   const f = r.ultimoFecho;
   if (f && (f.perdidas || f.aDescontar)) {
@@ -260,7 +251,7 @@ async function paginaEquipa() {
     </section>
     <section class="band band--surface" aria-labelledby="titulo-saldos">
       <h2 id="titulo-saldos">Saldos</h2>
-      <p class="intro">Valores positivos são horas a mais; negativos, horas em falta. No fecho de cada mês, o saldo com limites fica entre −30h e +50h. Escolha o seu nome para registar horas.</p>
+      <p class="intro">Valores positivos são horas a mais; negativos, horas em falta. No fecho de cada mês, o saldo com limites fica entre −30h e +50h. Escolhe o teu nome para registar horas.</p>
       ${dados.funcionarios.length ? `<ul class="equipa">${linhas}</ul>` : '<p>Ainda não há funcionários na folha.</p>'}
     </section>`;
 }
@@ -276,35 +267,36 @@ function paginaRegras() {
       'Valores positivos são horas a mais; negativos, horas em falta.',
     ]],
     ['Limites do saldo', [
-      'Pode acumular até <strong>50 horas positivas</strong> e até <strong>30 horas negativas</strong> sem impacto no processamento salarial (art. 2.º).',
+      'Podes acumular até <strong>50 horas positivas</strong> e até <strong>30 horas negativas</strong> sem impacto no processamento salarial (art. 2.º).',
       'Os saldos transitam de mês para mês, dentro destes limites.',
       'No fecho de cada mês, se o saldo for superior a +50h, fica em +50h e <strong>as horas a mais perdem-se</strong>.',
       'No fecho de cada mês, se o saldo for inferior a −30h, <strong>as horas abaixo desse limite são descontadas no salário</strong> desse mês.',
       'Os limites aplicam-se a partir de 1 de novembro de 2026. O saldo acumulado antes dessa data é <strong>saldo transitado</strong>: não tem limite e vai diminuindo à medida que é compensado.',
     ]],
     ['Gestão do saldo', [
-      'Cada pessoa gere o seu saldo de forma autónoma e consciente, procurando mantê-lo tão perto de zero quanto possível (art. 3.º).',
-      'Se sair mais tarde num dia, sempre que possível entre mais tarde no dia seguinte para compensar.',
+      'Geres o teu saldo de forma autónoma e consciente, procurando mantê-lo tão perto de zero quanto possível (art. 3.º).',
+      'Se saíres mais tarde num dia, sempre que possível entra mais tarde no dia seguinte para compensar.',
       'Como regra, as horas positivas gozam-se em períodos de horas distribuídos ao longo do tempo, e não em dias completos.',
-      'Na app, cada dia útil tem <strong>dois blocos de trabalho</strong>: o da manhã e o da tarde, com a hora de entrada e de saída de cada um, em intervalos de 15 minutos. A pausa é o intervalo entre os dois blocos. Pode registar a semana passada e planear até duas semanas à frente.',
+      'Na app, cada dia útil tem <strong>dois blocos de trabalho</strong>: o da manhã e o da tarde, com a hora de entrada e de saída de cada um, em intervalos de 15 minutos. A pausa é o intervalo entre os dois blocos. Podes registar a semana passada e planear até duas semanas à frente.',
       'Cada dia pode ter <strong>até 7 horas a mais ou a menos</strong> do que as 8 horas (entre 1h e 15h de trabalho).',
-      'Se trabalhou fora dos blocos, ou se ausentou durante um bloco, use o <strong>ajuste extraordinário</strong>, em intervalos de 15 minutos. Conta para o mesmo limite de 7 horas por dia.',
-      'Em cada dia pode deixar uma <strong>observação</strong> com até 300 caracteres (ex.: o motivo de um ajuste).',
+      'Se trabalhaste fora dos blocos, ou te ausentaste durante um bloco, usa o <strong>ajuste extraordinário</strong>, em intervalos de 15 minutos. Conta para o mesmo limite de 7 horas por dia.',
+      'Em cada dia podes deixar uma <strong>observação</strong> com até 300 caracteres (ex.: o motivo de um ajuste).',
       'O saldo total é atualizado no fim de cada dia. As horas de hoje e dos próximos dias aparecem como planeadas.',
     ]],
     ['Gozo de horas positivas', [
-      'Se gozar horas positivas afetar os horários dos períodos não letivos, peça <strong>autorização prévia à APJM</strong>, com antecedência suficiente para organizar uma substituição (art. 4.º).',
+      'Se gozares horas positivas que afetem os horários dos períodos não letivos, pede <strong>autorização prévia à APJM</strong>, com antecedência suficiente para organizar uma substituição (art. 4.º).',
       'O pedido deve ter em conta a continuidade do funcionamento e a cobertura dos períodos em causa.',
     ]],
     ['Tirar o dia', [
-      'Pode usar 8 horas do saldo flexível para <strong>tirar o dia</strong>, de folga ou de greve, sempre com <strong>aprovação prévia do executivo</strong>.',
-      'Na app, use o botão "Tirar o dia" no dia em causa. Antes de confirmar, a app mostra o efeito no saldo e pede que confirme que tem a aprovação prévia.',
-      'O dia conta −8h no saldo. Enquanto o dia estiver aberto na app, pode anular e voltar ao horário habitual.',
+      'Tirar o dia é uma <strong>exceção</strong>, só para <strong>dias de greve</strong> e <strong>situações pontuais</strong>, sempre com <strong>aprovação prévia do executivo</strong>. A tua ausência pode obrigar a contratar alguém para te substituir.',
+      'O dia usa 8 horas do teu saldo flexível e conta −8h.',
+      'Na app, usa o link "Tirar o dia" no dia em causa. Antes de confirmares, a app mostra o efeito no saldo e pede que confirmes que tens a aprovação prévia.',
+      'Enquanto o dia estiver aberto na app, podes anular e voltar ao horário habitual.',
     ]],
     ['Ausência de dia completo', [
       'Gozar um dia completo com o saldo positivo é excecional, tem de ser justificado e precisa sempre de <strong>aprovação prévia</strong> (art. 5.º).',
-      'Podem justificar uma exceção: doença da própria ou de familiares próximos; ter trabalhado um dia completo num fim de semana ou feriado; ou outras situações pessoais excecionais, avaliadas pela APJM.',
-      'O trabalho ao fim de semana ou feriado e as ausências que não passem pelo botão "Tirar o dia" são registados pela APJM na folha. Na app aparecem como "Registado pela APJM" e não podem ser alterados.',
+      'Podem justificar uma exceção: doença tua ou de familiares próximos; ter trabalhado um dia completo num fim de semana ou feriado; ou outras situações pessoais excecionais, avaliadas pela APJM.',
+      'O trabalho ao fim de semana ou feriado e as ausências que não passem pelo link "Tirar o dia" são registados pela APJM na folha. Na app aparecem como "Registado pela APJM" e não podem ser alterados.',
     ]],
   ];
   app.innerHTML = `
@@ -355,7 +347,7 @@ function pedirPin(pessoa, mensagem = '') {
   app.innerHTML = `
     <section class="band hero">
     <h1>${esc(pessoa.nome)}</h1>
-    <p class="lead">Introduza o seu PIN para ver e registar as suas horas.</p>
+    <p class="lead">Introduz o teu PIN para veres e registares as tuas horas.</p>
     <form class="pin" novalidate>
       <label for="pin">PIN de acesso</label>
       <div class="pin-linha">
@@ -390,8 +382,6 @@ function pedirPin(pessoa, mensagem = '') {
 const paraMinutos = (hora) => { const [h, m] = hora.split(':').map(Number); return h * 60 + m; };
 const paraHora = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-const MOTIVOS = { folga: 'Folga', greve: 'Greve' };
-
 /** Horas do dia de 15 em 15 minutos, das 6:00 às 23:00 (e a atual, se estiver fora), com "—" para sem bloco. */
 function opcoesDeHora(atual, regras) {
   const valores = [];
@@ -425,7 +415,7 @@ function editorDoDia(dia, d) {
   if (dia.diaTirado) {
     return `
         <form class="dia-form" data-dia="${dia.data}" data-dia-tirado="${dia.diaTirado}" novalidate>
-          <p class="dia-tirado-info">Dia tirado (${MOTIVOS[dia.diaTirado].toLowerCase()}) com 8 horas do saldo flexível.</p>
+          <p class="dia-tirado-info">Dia tirado com 8 horas do saldo flexível.</p>
           ${observacao}
           <div class="dia-acoes">
             <button type="submit" class="button sem-seta">Guardar observação</button>
@@ -455,7 +445,7 @@ function editorDoDia(dia, d) {
           <p class="dia-calculo" data-calculo aria-live="polite"></p>
           <div class="dia-acoes">
             <button type="submit" class="button sem-seta">Guardar</button>
-            <button type="button" class="button button-secundario sem-seta" data-tirar-dia>Tirar o dia</button>
+            <button type="button" class="link-acao" data-tirar-dia>Tirar o dia</button>
           </div>
         </form>`;
 }
@@ -501,7 +491,7 @@ function linhaDoDia(dia, d, quando) {
     return celulaDia + especial(`Feriado${nome}${apjm}`) + balanco(dia.minutos ? horas(dia.minutos) : '—') + obs;
   }
   if (dia.diaTirado) {
-    return celulaDia + especial(`<b>${MOTIVOS[dia.diaTirado]}</b> · dia tirado com 8h do saldo`) + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
+    return celulaDia + especial('<b>Dia tirado</b> · 8h do saldo') + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
   }
   if (dia.apjm && !(dia.registado && dia.minutos > -d.regras.minutosPorDia)) {
     return celulaDia + especial('Ausência registada pela APJM') + balanco(`<b>${horas(dia.minutos)}</b>`) + obs;
@@ -569,7 +559,7 @@ function tabelaHistorico(d) {
         <td>${diaCurto(h.data)}${notas}</td>
         <td class="num">—<small>Dia tirado</small></td>
         <td class="num">${horas(h.minutos)}</td>
-        <td>${MOTIVOS[h.diaTirado]}<small>${estados[h.estado]}</small></td>
+        <td>${estados[h.estado]}</td>
       </tr>`;
     }
     if (h.ferias || (h.feriado && !h.minutos)) {
@@ -638,7 +628,7 @@ function calcularNoFormulario(form, regras) {
   let trabalho = ajuste;
   for (const [nome, b] of [['da manhã', manha], ['da tarde', tarde]]) {
     if (!b.entrada && !b.saida) continue;
-    if (!b.entrada || !b.saida) return { erro: `Escolha a entrada e a saída ${nome}.` };
+    if (!b.entrada || !b.saida) return { erro: `Escolhe a entrada e a saída ${nome}.` };
     const duracao = paraMinutos(b.saida) - paraMinutos(b.entrada);
     if (duracao <= 0) return { erro: `A saída ${nome} tem de ser depois da entrada.` };
     trabalho += duracao;
@@ -648,14 +638,14 @@ function calcularNoFormulario(form, regras) {
   }
   const balanco = trabalho - regras.minutosPorDia;
   if (Math.abs(balanco) > regras.maxMinutosPorDia) {
-    return { erro: `${horas(trabalho, { sinal: false })} de trabalho: o balanço (${horas(balanco)}) passa o limite de ${horas(regras.maxMinutosPorDia, { sinal: false })} por dia. Para não trabalhar o dia inteiro, use "Tirar o dia".` };
+    return { erro: `${horas(trabalho, { sinal: false })} de trabalho: o balanço (${horas(balanco)}) passa o limite de ${horas(regras.maxMinutosPorDia, { sinal: false })} por dia. Para não trabalhares o dia inteiro, usa "Tirar o dia".` };
   }
   return { texto: `${horas(trabalho, { sinal: false })} de trabalho · balanço <b>${horas(balanco)}</b>` };
 }
 
 /**
- * Janela de confirmação de "Tirar o dia": mostra o efeito no saldo e a necessidade de aprovação
- * prévia do executivo. Devolve "folga" ou "greve", ou null se a pessoa cancelar.
+ * Janela de confirmação de "Tirar o dia": explica que é uma exceção (greve ou situação pontual,
+ * com aprovação prévia do executivo) e mostra o efeito no saldo. Devolve true se a pessoa confirmar.
  */
 function confirmarTirarDia(d, dia) {
   const saldoDepois = d.resumo.saldoPrevisto - dia.minutos - d.regras.minutosPorDia;
@@ -665,19 +655,14 @@ function confirmarTirarDia(d, dia) {
   dialogo.innerHTML = `
     <form method="dialog" class="dialogo-form">
       <h2 id="dialogo-titulo">Tirar o dia</h2>
-      <p>Vai tirar <strong>${diaLongo(dia.data)}</strong> usando <strong>${horas(d.regras.minutosPorDia, { sinal: false })} do seu saldo flexível</strong>.</p>
+      <div class="aviso aviso-erro"><p><strong>Isto é uma exceção.</strong> Tirar o dia é só para <strong>dias de greve</strong> e <strong>situações pontuais</strong>, sempre com <strong>aprovação prévia do executivo</strong>, porque a tua ausência pode obrigar a contratar alguém para te substituir.</p></div>
+      <p>Vais tirar <strong>${diaLongo(dia.data)}</strong> com <strong>${horas(d.regras.minutosPorDia, { sinal: false })} do teu saldo flexível</strong>.</p>
       <ul class="lista">
         <li>O dia conta <strong>${horas(-d.regras.minutosPorDia)}</strong> no saldo${dia.minutos ? `, em vez de ${horas(dia.minutos)}` : ''}.</li>
         <li>Saldo total com as horas planeadas: <strong>${horas(d.resumo.saldoPrevisto)}</strong> → <strong>${horas(saldoDepois)}</strong>.</li>
-        <li>Só pode tirar o dia (de folga ou de greve) com <strong>aprovação prévia do executivo</strong>.</li>
-        <li>Enquanto o dia estiver aberto na app, pode anular e voltar ao horário habitual.</li>
+        <li>Enquanto o dia estiver aberto na app, podes anular e voltar ao horário habitual.</li>
       </ul>
-      <fieldset class="dialogo-motivo">
-        <legend>Motivo</legend>
-        <label><input type="radio" name="motivo" value="folga" checked> Folga</label>
-        <label><input type="radio" name="motivo" value="greve"> Greve</label>
-      </fieldset>
-      <label class="dialogo-confirmo"><input type="checkbox" name="confirmo"> Confirmo que tenho aprovação prévia do executivo para tirar este dia.</label>
+      <label class="dialogo-confirmo"><input type="checkbox" name="confirmo"> Tenho aprovação prévia do executivo para tirar este dia.</label>
       <div class="dia-acoes">
         <button type="submit" class="button sem-seta" value="confirmar" disabled>Tirar o dia</button>
         <button type="submit" class="button button-secundario sem-seta" value="cancelar" formnovalidate>Cancelar</button>
@@ -690,9 +675,8 @@ function confirmarTirarDia(d, dia) {
   return new Promise((resolver) => {
     dialogo.addEventListener('close', () => {
       const ok = dialogo.returnValue === 'confirmar' && form.confirmo.checked;
-      const motivo = form.motivo.value;
       dialogo.remove();
-      resolver(ok ? motivo : null);
+      resolver(ok);
     });
     dialogo.showModal();
   });
@@ -705,7 +689,7 @@ function mostrarFuncionario(d, pin) {
   app.innerHTML = `
     <section class="band hero">
       <h1>${esc(d.nome)}</h1>
-      <p class="lead">O seu saldo de horas, a ${diaLongo(d.hoje)}.</p>
+      <p class="lead">O teu saldo de horas, a ${diaLongo(d.hoje)}.</p>
       <div class="actions"><button type="button" class="button sem-seta" data-sair>Sair</button></div>
     </section>
 
@@ -717,11 +701,11 @@ function mostrarFuncionario(d, pin) {
 
     <section class="band" aria-labelledby="titulo-registar">
       <h2 id="titulo-registar">Registar horas</h2>
-      <p class="intro">O seu horário habitual é ${textoBloco(h.manha)} de manhã e ${textoBloco(h.tarde)} à tarde.
-        Toque num dia para escolher a hora de entrada e de saída de cada bloco (a que entrou e saiu, ou vai entrar e sair) e carregue em <strong>Guardar</strong>.
-        Pode fazer até ${horas(d.regras.maxMinutosPorDia, { sinal: false })} a mais ou a menos do que as 8 horas de trabalho.
-        Use o <strong>ajuste extraordinário</strong> para trabalho fora dos blocos ou ausências curtas, e a <strong>observação</strong> para explicar.
-        Com aprovação prévia do executivo, pode <strong>tirar o dia</strong> (folga ou greve) com 8 horas do saldo.
+      <p class="intro">O teu horário habitual é ${textoBloco(h.manha)} de manhã e ${textoBloco(h.tarde)} à tarde.
+        Toca num dia para escolheres a hora de entrada e de saída de cada bloco (a que entraste e saíste, ou vais entrar e sair) e carrega em <strong>Guardar</strong>.
+        Podes fazer até ${horas(d.regras.maxMinutosPorDia, { sinal: false })} a mais ou a menos do que as 8 horas de trabalho.
+        Usa o <strong>ajuste extraordinário</strong> para trabalho fora dos blocos ou ausências curtas, e a <strong>observação</strong> para explicar.
+        Em dias de greve ou situações pontuais, e sempre com aprovação prévia do executivo, podes <strong>tirar o dia</strong> com 8 horas do saldo.
         Trabalho ao fim de semana ou feriado precisa de aprovação da APJM, que o regista na folha.</p>
       <div class="semanas">${d.semanas.map((s) => semana(s, d)).join('')}</div>
     </section>
@@ -787,13 +771,12 @@ function mostrarFuncionario(d, pin) {
       e.preventDefault();
       const corpo = lerFormulario(form);
       // Num dia tirado só se altera a observação (o dia continua tirado)
-      if (form.dataset.diaTirado) return gravar(data, { tirarDia: form.dataset.diaTirado, observacao: corpo.observacao }, form);
+      if (form.dataset.diaTirado) return gravar(data, { tirarDia: true, observacao: corpo.observacao }, form);
       gravar(data, corpo, form);
     });
 
     form.querySelector('[data-tirar-dia]')?.addEventListener('click', async () => {
-      const motivo = await confirmarTirarDia(d, dia);
-      if (motivo) gravar(data, { tirarDia: motivo, observacao: textarea.value }, form);
+      if (await confirmarTirarDia(d, dia)) gravar(data, { tirarDia: true, observacao: textarea.value }, form);
     });
 
     form.querySelector('[data-anular]')?.addEventListener('click', () => {
@@ -804,5 +787,4 @@ function mostrarFuncionario(d, pin) {
   });
 }
 
-atualizarCorDaBarra();
 mostrar();

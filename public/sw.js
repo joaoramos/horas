@@ -3,7 +3,7 @@
 // Sem ligação, a app abre a partir da cópia guardada e mostra uma mensagem em vez da página de erro do browser.
 // Os pedidos à API nunca são guardados: os saldos vêm sempre da folha.
 
-const CACHE = 'horas-v1';
+const CACHE = 'horas-v2';
 const ESSENCIAIS = [
   '/',
   '/app.js',
@@ -11,7 +11,6 @@ const ESSENCIAIS = [
   '/jm/design-system/tokens.css',
   '/jm/novo/site.css',
   '/jm/novo/themes.css',
-  '/jm/novo/theme-switcher.js',
   '/jm/design-system/logo/jardim-da-mata-mark.png',
 ];
 

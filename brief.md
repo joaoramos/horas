@@ -11,7 +11,7 @@ Esta web app permite aos funcionários registar as suas horas de trabalho, e ger
 - Os funcionários podem adicionar ou subtrair horas em qualquer combinação de dias úteis e horas de trabalho, desde que as horas totais adicionadas ou subtraídas sejam compensadas nos próximos 5 dias úteis.
 - Os funcionários não podem alterar o seu balanço de horas em mais de 7 horas por dia, i.e. podem remover ou adicionar até 7 horas de trabalho por dia.
 - Além dos dois blocos, cada funcionário pode fazer um ajuste extraordinário ao trabalho feito no dia, em intervalos de 15 minutos. Conta para o mesmo limite de 7 horas por dia.
-- Cada funcionário pode tirar o dia (de folga ou de greve, com aprovação prévia por parte do executivo), usando 8 horas do saldo flexível.
+- Cada funcionário pode tirar o dia, usando 8 horas do saldo flexível. É uma exceção, só para dias de greve e situações pontuais, sempre com aprovação prévia do executivo, porque pode implicar a contratação de terceiros.
 - Os funcionários são responsáveis por manter o seu balanço de horas nulo ao final de cada semana.
 
 
@@ -22,7 +22,7 @@ Esta web app permite aos funcionários registar as suas horas de trabalho, e ger
 - Cada funcionário consegue ajustar a hora de entrada e de saída do bloco da manhã e do bloco da tarde de cada dia, adicionando ou subtraindo até 7 horas ao seu balanço de horas por dia
 - Cada funcionário consegue fazer um ajuste extraordinário ao trabalho do dia, em intervalos de 15 minutos
 - Cada funcionário consegue deixar uma observação em cada dia (até 300 caracteres)
-- Cada funcionário consegue carregar em "Tirar o dia" para usar o saldo flexível (8h) e tirar o dia, de folga ou de greve, com aprovação prévia do executivo. Antes de confirmar, uma janela mostra o efeito no saldo e pede que confirme que tem essa aprovação
+- Cada funcionário consegue carregar no link "Tirar o dia" (uma ação discreta, ao lado de Guardar) para usar o saldo flexível (8h) e tirar o dia. Antes de confirmar, uma janela explica que é uma exceção para dias de greve e situações pontuais com aprovação prévia do executivo (pode implicar a contratação de terceiros), mostra o efeito no saldo e pede que confirme que tem essa aprovação. Não é preciso escolher um motivo
 - Ao final de cada dia útil, o balanço de horas é atualizado subtraindo ou adicionando as horas trabalhadas
 - Cada funcionário vê cada semana numa tabela larga, com colunas para a entrada e a saída da manhã e da tarde, o ajuste, o trabalho, o balanço e a observação de cada dia; no telemóvel, a tabela fica mais compacta
 - Cada funcionário consegue ver o seu histórico de horas trabalhadas
@@ -39,3 +39,5 @@ Esta web app permite aos funcionários registar as suas horas de trabalho, e ger
 - Haverá inicialmente apenas 2 funcinários: Mariana (com um balanço pré-existente de 70 horas) e Vera (sem balanço pré-existente), acessíveis respetivamente via https://horas.jardimdamata.pt/mariana e https://horas.jardimdamata.pt/vera.
 - A página dedicada a cada funcionário terá um PIN de acesso a ser especificado na folha de Google Sheets.
 - A web app deverá ser responsiva e funcionar em dispositivos móveis.
+- A web app usa um único tema visual, o Tema 3 — Dinâmico do site do Jardim da Mata, sem seletor de temas.
+- Os textos da app tratam os funcionários por tu (ex.: "o teu saldo" em vez de "o seu saldo").

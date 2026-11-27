@@ -1,11 +1,11 @@
 /*
  * Horas — componentes próprios da app.
- * A base (cabeçalho, bandas, botões, rodapé) vem de jm/novo/site.css e os temas de jm/novo/themes.css.
- * Aqui só se usam tokens semânticos (--color-*, --space-*…), para que cada tema os possa alterar.
+ * A base (cabeçalho, bandas, botões, rodapé) vem de jm/novo/site.css e o Tema 3 — Dinâmico de jm/novo/themes.css.
+ * Aqui só se usam tokens semânticos (--color-*, --space-*…), para que o tema os possa alterar.
  */
 
 /* Cartões: no fundo de uma banda --surface usam a cor de fundo, e vice-versa.
-   O contorno mantém-nos visíveis em temas onde as duas cores são iguais (Magazine). */
+   O contorno mantém-nos visíveis mesmo quando as duas cores são parecidas. */
 .band { --cartao-bg: var(--color-surface); }
 .band--surface { --cartao-bg: var(--color-bg); }
 .cartao {
@@ -263,6 +263,21 @@ tr.linha-inativa td {
 .dia-acoes .button { padding-block: var(--space-2); font-size: var(--text-sm); }
 .button.button-secundario { background: transparent; color: var(--color-text) !important; box-shadow: inset 0 0 0 1px currentColor; }
 .button.button-secundario:hover { background: var(--color-heading); color: var(--color-on-accent) !important; }
+/* Ação de menos relevo, com aspeto de link (ex.: "Tirar o dia") */
+.link-acao {
+  align-self: center;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.link-acao:hover { text-decoration-thickness: 2px; }
+.link-acao:disabled { opacity: 0.5; cursor: default; }
 
 /* Janela de confirmação de "Tirar o dia" */
 .dialogo { width: min(32rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: var(--space-5); text-align: left; --cartao-bg: var(--color-surface); }
@@ -270,8 +285,7 @@ tr.linha-inativa td {
 .dialogo h2 { margin-bottom: var(--space-3); font-size: var(--text-xl); }
 .dialogo-form { display: grid; gap: var(--space-3); }
 .dialogo-form p, .dialogo-form .lista { margin: 0; font-size: var(--text-sm); }
-.dialogo-motivo { display: flex; gap: var(--space-4); margin: 0; padding: 0; border: 0; }
-.dialogo-motivo legend { margin-bottom: var(--space-1); font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.dialogo .aviso { margin: 0; }
 .dialogo-confirmo { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .dialogo-confirmo input { margin-top: 0.25em; }
 
@@ -308,11 +322,3 @@ td small { font-size: var(--text-xs); }
   letter-spacing: 0.3em;
 }
 .pin-erro { min-height: 1.5em; margin-top: var(--space-2); font-weight: var(--weight-bold); }
-
-/* ---------------------------------------------------------------- ajustes por tema */
-
-/* Magazine: as bandas são centradas, por isso os blocos também */
-:root[data-theme="magazine"] :is(.intro, .nota, .aviso, .equipa, .saldos, .tabela) { margin-inline: auto; }
-
-/* Magazine: a capa (hero) é escura; o formulário do PIN tem de continuar legível */
-:root[data-theme="magazine"] .hero .pin input { background: var(--mg-paper); color: var(--mg-ink); }

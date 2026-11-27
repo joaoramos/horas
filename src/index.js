@@ -202,7 +202,7 @@ export default {
     } catch (erro) {
       if (erro instanceof ErroPublico) return json({ erro: erro.message }, erro.estado);
       console.error(erro);
-      return json({ erro: 'Não foi possível contactar a folha de horas. Tente novamente daqui a pouco.' }, 502);
+      return json({ erro: 'Não foi possível contactar a folha de horas. Tenta de novo daqui a pouco.' }, 502);
     }
   },
 };

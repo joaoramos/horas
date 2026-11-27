@@ -15,8 +15,9 @@ Browser ──▶ Cloudflare Worker (horas.jardimdamata.pt) ──▶ Google App
 - **`src/saldo.js`**: as regras de cálculo (dois blocos por dia, máximo de 7h por dia, ajuste extraordinário, "Tirar o dia", limites mensais, saldo transitado).
 - **`src/dados.js`**: lê e grava na folha, através do Apps Script. As leituras ficam 30 segundos em cache.
 - **`apps-script/Code.gs`**: script ligado à folha que lê os separadores e grava os registos.
-- **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css`, os temas e o seletor de temas), copiados sem alterações.
-  `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que todos os temas se apliquem.
+- **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css` e `themes.css`), copiados sem alterações.
+  A app usa sempre o **Tema 3 — Dinâmico** (`data-theme="tema-3"` no `<html>` de `public/index.html`), sem seletor de temas.
+  `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que o tema se aplique.
 
 ### Página de cada pessoa
 
@@ -52,8 +53,12 @@ npm run sincronizar-estilos              # assume ../jardimdamata
 npm run sincronizar-estilos -- /outro/caminho/jardimdamata
 ```
 
-O seletor de temas (canto inferior direito) guarda a escolha no browser, com a mesma chave do site (`jm-theme`).
-Quando o site escolher um tema definitivo e apagar `themes.css` e `theme-switcher.js`, basta voltar a sincronizar e retirar as duas linhas correspondentes em `public/index.html`.
+A app tem um único tema, o **Tema 3 — Dinâmico**, fixo com `data-theme="tema-3"` no `<html>` de `public/index.html`. Não há seletor de temas:
+a sincronização copia só `tokens.css`, os logótipos, `site.css` e `themes.css` (onde está o Tema 3), e não copia `theme-switcher.js`
+nem as imagens e o tipo de letra dos outros temas. Se o site mudar o nome do tema ou passar o Tema 3 a ser o tema base,
+basta atualizar (ou retirar) o `data-theme` em `public/index.html`.
+
+Os textos tratam as pessoas por tu (ex.: "o teu saldo", "escolhe o teu nome").
 
 Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 
@@ -98,7 +103,7 @@ Estas são as tarefas de quem a mantém (APJM).
 
 #### Aprovações e correções (separador `Registos`)
 
-Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas semanas seguintes, e só até 7 horas a mais ou a menos por dia (ou tirar o dia inteiro, com o botão "Tirar o dia"). Tudo o resto faz-se aqui. Registar na folha é a aprovação da APJM, por isso escreva sempre uma `nota` a explicar.
+Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas semanas seguintes, e só até 7 horas a mais ou a menos por dia (ou tirar o dia inteiro, com o link "Tirar o dia"). Tudo o resto faz-se aqui. Registar na folha é a aprovação da APJM, por isso escreva sempre uma `nota` a explicar.
 
 - **Férias:** para cada dia útil de férias, escreva `férias` na coluna `tipo` da linha dessa pessoa nesse dia. Se ainda não houver linha (ex.: férias no futuro), acrescente uma com `data`, `funcionario`, `tipo` = `férias` e, se quiser, uma `nota` (ex.: "Férias de verão"). Uma linha por dia; os fins de semana e feriados não precisam de linha.
   - Um dia de férias não conta para o saldo: os blocos, o `ajuste` e as `horas` dessa linha são ignorados, e também outras linhas desse dia.
@@ -106,7 +111,7 @@ Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas 
   - O cartão "Saldo de férias", na página de cada pessoa, mostra os dias disponíveis: `dias_ferias` menos os dias úteis marcados como férias nesse ano. Os dias já passados aparecem como usados e os futuros como marcados. Fins de semana e feriados marcados como férias não contam.
   - Para cancelar férias, apague `férias` da coluna `tipo` (ou apague a linha, se for no futuro). O dia volta a ser um dia normal.
   - Não use `-8` para férias: isso desconta 8 horas no saldo.
-- **Dia tirado (folga ou greve):** a pessoa regista-o na app, com o botão "Tirar o dia", depois de ter a aprovação prévia do executivo. Na folha, a linha fica com `tipo` = `folga` ou `greve`, os blocos vazios e `horas` = `-8`. Para o anular na folha, apague o `tipo` e preencha os blocos. Também o pode registar à mão da mesma forma.
+- **Dia tirado** (exceção para dias de greve e situações pontuais): a pessoa regista-o na app, com o link "Tirar o dia", depois de ter a aprovação prévia do executivo. A app já não pede o motivo: na folha, a linha fica com `tipo` = `folga`, os blocos vazios e `horas` = `-8`. Também se aceita `greve` (dias tirados antes desta mudança, ou registados à mão) e conta da mesma forma. Para o anular na folha, apague o `tipo` e preencha os blocos. Também o pode registar à mão da mesma forma.
   - Um dia tirado conta sempre −8h: os blocos, o `ajuste` e as `horas` dessa linha são ignorados, e também outras linhas desse dia.
 - **Ausência de dia completo por outro motivo** (art. 5.º, sempre com aprovação prévia): na linha dessa pessoa nesse dia, apague os blocos e escreva `-8` em `horas`. Se ainda não houver linha, acrescente uma com `data`, `funcionario`, `horas` = `-8` e a `nota`.
 - **Ausência de parte do dia com mais de 7 horas:** igual, com as horas em falta (ex.: `-7,5`) e sem blocos.
@@ -134,7 +139,7 @@ e os valores (limites, data de início, máximo diário, passo de 15 minutos, ta
 - **Na app**, cada pessoa toca num dia útil e escolhe a hora de entrada e de saída de cada bloco, em intervalos de 15 minutos, e carrega em **Guardar**. Um bloco pode ficar vazio (ex.: só trabalhar de manhã). O desvio tem de ficar entre −7h e +7h (entre 1h e 15h de trabalho). Pode registar a semana anterior e planear as duas seguintes.
 - **Ajuste extraordinário:** em cada dia, um ajuste de −7h a +7h, em intervalos de 15 minutos, para trabalho fora dos blocos ou ausências curtas dentro de um bloco. Soma-se aos blocos e conta para o mesmo limite de ±7h por dia.
 - **Observação:** em cada dia, um texto até 300 caracteres (coluna `observacao`). Aparece na semana e no histórico.
-- **Tirar o dia:** a pessoa pode usar 8 horas do saldo flexível para tirar o dia, de folga ou de greve, com aprovação prévia do executivo. Antes de gravar, a app abre uma janela com o dia, o efeito no saldo (−8h, e o saldo antes e depois) e a regra da aprovação prévia; só grava depois de a pessoa escolher o motivo e confirmar que tem a aprovação. O dia conta −8h (fora do limite de ±7h) e pode ser anulado na app enquanto o dia estiver aberto, voltando ao horário habitual.
+- **Tirar o dia:** uma exceção, só para dias de greve e situações pontuais, sempre com aprovação prévia do executivo, porque a ausência pode obrigar a contratar alguém para substituir. Usa 8 horas do saldo flexível. Na app é um link discreto ("Tirar o dia") ao lado de **Guardar**. Antes de gravar, a app abre uma janela que explica primeiro esta exceção e depois mostra o dia e o efeito no saldo (−8h, e o saldo antes e depois); só grava depois de a pessoa confirmar que tem a aprovação. Não há escolha de motivo: o dia fica com `tipo` = `folga` na folha. O dia conta −8h (fora do limite de ±7h) e pode ser anulado na app enquanto o dia estiver aberto, voltando ao horário habitual.
 - **Todos os dias úteis ficam na folha:** todas as noites (02:00 UTC), um Cron Trigger do Worker acrescenta o horário habitual nos dias úteis já terminados sem registo, desde 1 de novembro de 2026. Se uma noite falhar, a seguinte recupera os dias em falta (até 31 dias para trás).
 - **Na folha**, a APJM regista o que precisa de aprovação e não passa pela app (art. 5.º): outras ausências de dia completo (`horas` = `-8`, sem blocos) e trabalho ao fim de semana ou feriado (`horas` = `8`, ou os blocos). Esse registo é a aprovação. Estes dias aparecem na app como "Registado pela APJM" e não podem ser alterados lá.
 - **Limites (art. 2.º):** no fecho de cada mês, o saldo com limites fica entre −30h e +50h. Acima de +50h, as horas a mais perdem-se. Abaixo de −30h, as horas abaixo do limite são descontadas no salário desse mês. O fecho acontece quando termina o último dia do mês. A app guarda o resultado de cada fecho e mostra-o à pessoa e na lista da equipa.

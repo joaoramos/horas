@@ -147,14 +147,17 @@ test('validação dos registos', () => {
   assert.throws(() => v('2026-02-30', ...VERA), /Data inválida/);
 });
 
-test('tirar o dia: folga ou greve, conta −8h e pode ser anulado', () => {
+test('tirar o dia: conta −8h, guarda o tipo e pode ser anulado', () => {
   const hoje = '2026-10-21';
   const t = (corpo, opcoes) => validarRegisto({ data: '2026-10-23', ...corpo }, hoje, new Set(), opcoes);
   assert.deepEqual(t({ tirarDia: 'greve', observacao: 'Greve geral' }), {
     minutos: -8 * H, manha: null, tarde: null, ajuste: 0, observacao: 'Greve geral', tipo: 'greve',
   });
   assert.equal(t({ tirarDia: 'folga' }).tipo, 'folga');
-  assert.throws(() => t({ tirarDia: 'ferias' }), /folga ou de greve/);
+  assert.throws(() => t({ tirarDia: 'ferias' }), /tirar o dia/);
+  // A app já não pede o motivo: um dia novo fica "folga" e um dia já tirado mantém o tipo
+  assert.equal(t({ tirarDia: true }).tipo, 'folga');
+  assert.equal(t({ tirarDia: true, observacao: 'Greve geral' }, { minutosAtuais: -8 * H, diaTirado: 'greve' }).tipo, 'greve');
   // Um dia tirado (−8h) não é confundido com um dia registado pela APJM: pode ser anulado na app
   const anular = t({ manha: { entrada: '09:30', saida: '14:00' }, tarde: { entrada: '15:00', saida: '18:30' } }, { minutosAtuais: -8 * H, diaTirado: 'folga' });
   assert.deepEqual([anular.minutos, anular.tipo], [0, '']);

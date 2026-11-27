@@ -6,7 +6,8 @@
 // menos as 8 horas do horário: ex.: 9:30–14:00 e 15:00–19:00 = 8h30, ou seja, +30min.
 // - Nos dias úteis, cada pessoa regista na app os dois blocos e, se for preciso, um ajuste
 //   extraordinário (em intervalos de 15 minutos), com um desvio até ±7h por dia.
-// - Também pode "tirar o dia" (folga ou greve, com aprovação prévia do executivo): o dia conta −8h.
+// - Também pode "tirar o dia" (exceção para dias de greve e situações pontuais, com aprovação prévia
+//   do executivo): o dia conta −8h.
 // - Todos os dias úteis ficam registados na folha: os que ninguém alterou são preenchidos todas
 //   as noites com o horário habitual (ver preencherDias em index.js).
 // - Trabalho ao fim de semana ou feriado e outras ausências são registados pela APJM diretamente
@@ -219,7 +220,7 @@ function lerBloco(bloco, nome) {
   const s = lerHora(bloco?.saida);
   const vazio = (v) => String(v ?? '').trim() === '';
   if (vazio(bloco?.entrada) && vazio(bloco?.saida)) return null;
-  if (e === null || s === null) throw new ErroPublico(`Indique a hora de entrada e de saída ${nome}.`);
+  if (e === null || s === null) throw new ErroPublico(`Indica a hora de entrada e de saída ${nome}.`);
   if (e % REGRAS.passoMinutos || s % REGRAS.passoMinutos) {
     throw new ErroPublico(`As horas têm de ser múltiplos de ${REGRAS.passoMinutos} minutos.`);
   }
@@ -254,7 +255,9 @@ const blocoEmTexto = (bloco) => (bloco ? { entrada: formatarHora(bloco.entrada),
  * Valida um pedido de registo e devolve o registo normalizado. O pedido é um de dois:
  * - um dia normal: { data, manha: { entrada, saida }, tarde: { entrada, saida }, ajuste, observacao }
  *   (um bloco sem horas fica vazio; o ajuste é em minutos);
- * - tirar o dia: { data, tirarDia: 'folga' | 'greve', observacao }, que conta −8h.
+ * - tirar o dia: { data, tirarDia: true, observacao }, que conta −8h. A app já não pede o motivo: um dia
+ *   novo fica com tipo "folga" e um dia já tirado mantém o tipo que tem ("folga" ou "greve").
+ *   Ainda se aceita tirarDia: 'folga' | 'greve', de versões anteriores da app.
  */
 export function validarRegisto(pedido, hoje, feriados, { minutosAtuais = 0, ferias = false, diaTirado = null } = {}) {
   const { data } = pedido;
@@ -270,8 +273,9 @@ export function validarRegisto(pedido, hoje, feriados, { minutosAtuais = 0, feri
   const observacao = lerObservacao(pedido.observacao);
 
   if (pedido.tirarDia !== undefined && pedido.tirarDia !== null && pedido.tirarDia !== '') {
-    if (!MOTIVOS_DIA_TIRADO.includes(pedido.tirarDia)) throw new ErroPublico('Indique se o dia é de folga ou de greve.');
-    return { minutos: -REGRAS.minutosPorDia, manha: null, tarde: null, ajuste: 0, observacao, tipo: pedido.tirarDia };
+    const tipo = pedido.tirarDia === true ? (diaTirado ?? 'folga') : pedido.tirarDia;
+    if (!MOTIVOS_DIA_TIRADO.includes(tipo)) throw new ErroPublico('Pedido inválido para tirar o dia.');
+    return { minutos: -REGRAS.minutosPorDia, manha: null, tarde: null, ajuste: 0, observacao, tipo };
   }
 
   const manha = lerBloco(pedido.manha, 'da manhã');
@@ -284,7 +288,7 @@ export function validarRegisto(pedido, hoje, feriados, { minutosAtuais = 0, feri
   if (Math.abs(minutos) > REGRAS.maxMinutosPorDia) {
     const minimo = duracao(REGRAS.minutosPorDia - REGRAS.maxMinutosPorDia);
     const maximo = duracao(REGRAS.minutosPorDia + REGRAS.maxMinutosPorDia);
-    throw new ErroPublico(`Cada dia tem de ter entre ${minimo} e ${maximo} de trabalho (até ${duracao(REGRAS.maxMinutosPorDia)} a mais ou a menos). Para não trabalhar o dia inteiro, use "Tirar o dia".`);
+    throw new ErroPublico(`Cada dia tem de ter entre ${minimo} e ${maximo} de trabalho (até ${duracao(REGRAS.maxMinutosPorDia)} a mais ou a menos). Para não trabalhares o dia inteiro, usa "Tirar o dia".`);
   }
   return { minutos, manha: blocoEmTexto(manha), tarde: blocoEmTexto(tarde), ajuste, observacao, tipo: '' };
 }
