@@ -51,7 +51,28 @@ function folhaSimulada(nome, linhas) {
 
 function carregarScript(folhas, { fuso = 'Europe/Lisbon' } = {}) {
   const propriedades = { TOKEN: 'segredo' };
+  const emails = [];
+  const acionadores = [];
+  const novoAcionador = (funcao) => {
+    const a = { funcao, getHandlerFunction: () => funcao };
+    const cadeia = {
+      timeBased: () => cadeia,
+      onWeekDay: (d) => { a.dia = d; return cadeia; },
+      atHour: (h) => { a.hora = h; return cadeia; },
+      nearMinute: (m) => { a.minuto = m; return cadeia; },
+      inTimezone: (tz) => { a.fuso = tz; return cadeia; },
+      create: () => { acionadores.push(a); return a; },
+    };
+    return cadeia;
+  };
   const contexto = vm.createContext({
+    MailApp: { sendEmail: (m) => emails.push(m) },
+    ScriptApp: {
+      WeekDay: { SATURDAY: 'SATURDAY' },
+      newTrigger: novoAcionador,
+      getProjectTriggers: () => [...acionadores],
+      deleteTrigger: (a) => acionadores.splice(acionadores.indexOf(a), 1),
+    },
     // O mesmo Date do teste, para que `instanceof Date` funcione dentro do script
     Date,
     SpreadsheetApp: {
@@ -79,6 +100,9 @@ function carregarScript(folhas, { fuso = 'Europe/Lisbon' } = {}) {
   vm.runInContext(readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8'), contexto);
   const correr = (codigo) => vm.runInContext(codigo, contexto);
   return {
+    emails,
+    acionadores,
+    correr,
     configurar: () => correr('configurar()'),
     post: (corpo) => {
       contexto.__corpo = JSON.stringify({ token: 'segredo', ...corpo });
@@ -125,8 +149,8 @@ test('Apps Script: configurar acrescenta as colunas novas sem estragar a folha a
   // Os dados existentes ficam intactos
   assert.deepEqual(folhas.Registos.dados[1].slice(0, 6), ['2026-10-27', 'vera', '', '', -2, 'Consulta']);
   assert.equal(folhas.Funcionarios.dados[2][3], 70);
-  // Usa o separador de feriados existente, sem criar outro
-  assert.deepEqual(Object.keys(folhas).sort(), ['Feriados', 'Funcionarios', 'Registos']);
+  // Usa o separador de feriados existente, sem criar outro; só acrescenta o da configuração
+  assert.deepEqual(Object.keys(folhas).sort(), ['Configuracao', 'Feriados', 'Funcionarios', 'Registos']);
 
   // Um bloco já preenchido à mão não é substituído
   folhas.Funcionarios.dados[1][9] = '09:00';
@@ -232,4 +256,83 @@ test('Apps Script: datas guardadas como datas numa folha com outro fuso horário
   assert.equal(r.ok, true, r.erro);
   dados = interpretar(script.get().dados);
   assert.deepEqual(dados.registos.map((x) => [x.data, x.minutos]), [['2026-11-05', 60], ['2026-11-06', 90]]);
+});
+
+test('Apps Script: resumo semanal por email, com os dias de mais de 2h em destaque', () => {
+  const folhas = {
+    Funcionarios: folhaSimulada('Funcionarios', [
+      ['id', 'nome', 'pin', 'saldo_inicial', 'ativo', 'entrada', 'saida', 'pausa', 'dias_ferias', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde'],
+      ['mariana', 'Mariana', '1111', 0, '', '10:00', '19:00', '1,00', 22, '10:00', '14:00', '15:00', '19:00'],
+      ['vera', 'Vera', '2222', 0, 'sim', '09:30', '18:30', '1,00', 22, '09:30', '14:00', '15:00', '18:30'],
+      ['rui', 'Rui', '3333', 0, 'não', '', '', '', '', '', '', '', ''],
+    ]),
+    Registos: folhaSimulada('Registos', [
+      ['data', 'funcionario', 'horas', 'nota', 'atualizado_em', 'entrada', 'saida', 'tipo', 'entrada_manha', 'saida_manha', 'entrada_tarde', 'saida_tarde', 'ajuste', 'observacao'],
+      // Semana de 23 a 29 de novembro de 2026
+      ['23/11/2026', 'mariana', '0', '', '', '10:00', '19:00'], // registo antigo: 9h − 1h de pausa = 8h
+      ['2026-11-24', 'mariana', 2.25, '', '', '', '', '', '10:00', '14:00', '15:00', '21:00', 0.25, 'Reunião de pais <depois>'],
+      ['2026-11-25', 'mariana', -2, '', '', '', '', '', '10:00', '14:00', '15:00', '17:00', '', ''],
+      ['2026-11-26', 'mariana', -8, '', '', '', '', 'folga', '', '', '', '', '', 'Greve'],
+      ['2026-11-23', 'vera', 0, '', '', '', '', '', '09:30', '14:00', '15:00', '18:30', '', ''],
+      ['2026-11-24', 'vera', 0, '', '', '', '', 'Férias', '', '', '', '', '', ''],
+      ['2026-11-28', 'vera', 8, 'Sábado: feira', '', '', '', '', '', '', '', '', '', ''],
+      ['2026-11-30', 'vera', 5, '', '', '', '', '', '08:00', '14:00', '15:00', '22:00', '', ''], // semana seguinte
+    ]),
+    Feriados: folhaSimulada('Feriados', [['data', 'descricao'], ['2026-11-27', 'Feriado de teste']]),
+  };
+  const script = carregarScript(folhas);
+
+  // Sem destinatário, não envia e explica onde o pôr
+  assert.throws(() => script.correr("enviarResumoDaSemana('2026-11-28')"), /email_resumo/);
+  script.configurar();
+  assert.deepEqual(folhas.Configuracao.dados[1].slice(0, 2), ['email_resumo', '']);
+  folhas.Configuracao.dados[1][1] = 'executivo@exemplo.pt; outra@exemplo.pt';
+
+  // (JSON: os objetos vêm de outro contexto do vm)
+  const resumo = JSON.parse(JSON.stringify(script.correr("enviarResumoDaSemana('2026-11-28')")));
+  assert.equal(script.emails.length, 1);
+  const email = script.emails[0];
+  assert.equal(email.to, 'executivo@exemplo.pt,outra@exemplo.pt');
+  assert.equal(email.subject, 'Horas: resumo da semana de 23 a 27 de novembro (3 dias em destaque)');
+
+  // Só as pessoas ativas
+  assert.deepEqual(resumo.pessoas.map((p) => p.nome), ['Mariana', 'Vera']);
+  const [mariana, vera] = resumo.pessoas;
+  assert.deepEqual(mariana.linhas.map((l) => [l.data, l.minutos, l.trabalho, l.destaque]), [
+    ['2026-11-23', 0, 480, false],
+    ['2026-11-24', 135, 615, true], // 4h + 6h + 15min de ajuste
+    ['2026-11-25', -120, 360, false], // exatamente 2h: não é "mais de 2h"
+    ['2026-11-26', -480, 0, true], // dia tirado
+    ['2026-11-27', 0, 0, false], // feriado
+  ]);
+  assert.equal(mariana.desvio, 135 - 120 - 480);
+  assert.deepEqual(vera.linhas.map((l) => [l.data, l.estado, l.minutos, l.destaque]), [
+    ['2026-11-23', '', 0, false],
+    ['2026-11-24', 'Férias', 0, false],
+    ['2026-11-25', 'Sem registo', null, false],
+    ['2026-11-26', 'Sem registo', null, false],
+    ['2026-11-27', 'Feriado: Feriado de teste', 0, false],
+    ['2026-11-28', 'Trabalho extra', 480, true], // fim de semana registado pela APJM
+  ]);
+  assert.deepEqual(resumo.destaques.map((d) => [d.nome, d.dia.data]), [['Mariana', '2026-11-24'], ['Mariana', '2026-11-26'], ['Vera', '2026-11-28']]);
+
+  // O texto escapa o HTML e mostra os destaques
+  assert.match(email.htmlBody, /Reunião de pais &lt;depois&gt;/);
+  assert.match(email.htmlBody, /−8h/);
+  assert.match(email.body, /Mariana, qui 26\/11: −8h \(dia tirado\) — Greve/);
+  assert.match(email.body, /Mariana, ter 24\/11: \+2h15 \(10:00–14:00 e 15:00–21:00, ajuste \+15min\)/);
+
+  // Semana sem destaques
+  folhas.Configuracao.dados[1][1] = 'executivo@exemplo.pt';
+  const outra = script.correr("enviarResumoDaSemana('2026-12-30')");
+  assert.equal(outra.destaques.length, 0);
+  assert.equal(script.emails[1].subject, 'Horas: resumo da semana de 28 de dezembro de 2026 a 1 de janeiro de 2027');
+  assert.match(script.emails[1].body, /Nenhum dia com mais de 2h/);
+
+  // Acionador: sábados às 18:00 em Lisboa, sem duplicar
+  script.correr('criarAcionadorSemanal()');
+  script.correr('criarAcionadorSemanal()');
+  assert.deepEqual(script.acionadores.map((a) => [a.funcao, a.dia, a.hora, a.minuto, a.fuso]), [['enviarResumoSemanal', 'SATURDAY', 18, 0, 'Europe/Lisbon']]);
+  script.correr('removerAcionadorSemanal()');
+  assert.equal(script.acionadores.length, 0);
 });

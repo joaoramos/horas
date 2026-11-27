@@ -14,7 +14,7 @@ Browser ──▶ Cloudflare Worker (horas.jardimdamata.pt) ──▶ Google App
 - **`public/`**: a interface (HTML, CSS e JS, sem build). Rotas: `/` (equipa), `/regras` e `/<id>` (ex.: `/mariana`).
 - **`src/saldo.js`**: as regras de cálculo (dois blocos por dia, máximo de 7h por dia, ajuste extraordinário, "Tirar o dia", limites mensais, saldo transitado).
 - **`src/dados.js`**: lê e grava na folha, através do Apps Script. As leituras ficam 30 segundos em cache.
-- **`apps-script/Code.gs`**: script ligado à folha que lê os separadores e grava os registos.
+- **`apps-script/Code.gs`**: script ligado à folha que lê os separadores e grava os registos. Também envia o [resumo semanal por email](#resumo-semanal-por-email) ao executivo.
 - **`public/jm/`**: os estilos do site do Jardim da Mata (tokens, `site.css` e `themes.css`), copiados sem alterações.
   A app usa sempre o **Tema 3 — Dinâmico** (`data-theme="tema-3"` no `<html>` de `public/index.html`), sem seletor de temas.
   `public/styles.css` só tem os componentes próprios da app e usa apenas tokens semânticos, para que o tema se aplique.
@@ -69,6 +69,8 @@ Tudo cabe nos planos gratuitos do Cloudflare Workers e do Google Apps Script.
 | `Funcionarios` | `id`, `nome`, `pin`, `saldo_inicial`, `ativo`, `dias_ferias`, `entrada_manha`, `saida_manha`, `entrada_tarde`, `saida_tarde` | Uma linha por funcionário. O `id` é o endereço (`mariana` → `/mariana`). `saldo_inicial` em horas (ex.: `70`). Escreva `não` em `ativo` para esconder alguém. `dias_ferias` são os dias de férias do ano corrente (ex.: `22`). As quatro colunas de horas são o horário habitual: o bloco da manhã (ex.: `09:30` a `14:00`) e o da tarde (ex.: `15:00` a `18:30`). A pausa é o intervalo entre os dois. |
 | `Registos` | `data`, `funcionario`, `horas`, `nota`, `atualizado_em`, `tipo`, `entrada_manha`, `saida_manha`, `entrada_tarde`, `saida_tarde`, `ajuste`, `observacao` | Uma linha por pessoa e por dia útil, com os dois blocos. `ajuste` é o ajuste extraordinário, em horas (ex.: `0,25` ou `-0,75`). `horas` é o desvio face às 8h (ex.: `0,5` ou `-2`), calculado a partir dos blocos e do ajuste. `observacao` é a observação que a pessoa deixou na app (até 300 caracteres); `nota` é para a APJM. `tipo` fica vazio nos dias normais; `férias` marca o dia como férias (só na folha); `folga` ou `greve` marcam um dia tirado na app. A app escreve aqui, e todas as noites acrescenta o horário habitual nos dias que ninguém alterou. Também se pode editar à mão. |
 | `Feriados` | `data`, `descricao` | Dias que não contam como dias úteis. Na app aparecem como dias inativos, com a descrição, e não podem ser alterados. |
+| `Configuracao` | `chave`, `valor`, `descricao` | Só para o Apps Script (a app não o lê). Na linha `email_resumo`, a coluna `valor` tem quem recebe o resumo semanal (vários endereços separados por vírgulas). |
+| `Manual` | — | Texto para o executivo, escrito à mão. Nem a app nem o `Code.gs` o leem. |
 
 ### Manutenção da folha
 
@@ -123,11 +125,37 @@ Na app, cada pessoa só pode alterar os dias úteis da semana anterior às duas 
 
 #### Cuidados
 
-- Não mude os nomes dos separadores (`Funcionarios`, `Registos`, `Feriados`) nem os cabeçalhos das colunas, e não apague colunas. Para renomear um separador, é preciso mudar também o nome em `FOLHAS`, no início do `Code.gs`, e publicar uma nova versão do Apps Script. Pode acrescentar colunas novas e ordenar as linhas.
+- Não mude os nomes dos separadores (`Funcionarios`, `Registos`, `Feriados`, `Configuracao`) nem os cabeçalhos das colunas, e não apague colunas. Para renomear um separador, é preciso mudar também o nome em `FOLHAS`, no início do `Code.gs`, e publicar uma nova versão do Apps Script. Pode acrescentar colunas novas e ordenar as linhas.
 - Não apague linhas de `Registos`, exceto para corrigir um engano. O histórico da app e os fechos de mês dependem delas.
 - As datas podem estar em `2026-10-24` ou `24/10/2026`. As horas do dia em `09:30`. As horas em `horas` e em `ajuste` aceitam `1,5`, `-1.25`, `1:30` ou `-2h`.
 - A folha tem os PIN de todas as pessoas: partilhe-a só com quem a mantém.
 - Os limites (+50h e −30h), a data de início dos limites, o máximo de 7 horas por dia e o máximo de 300 caracteres da observação estão no código da app, não na folha. Para os mudar, fale com quem mantém a app.
+
+## Resumo semanal por email
+
+Todos os sábados, por volta das 18:00 (hora de Lisboa), o Apps Script envia ao executivo da APJM um resumo da semana
+(de segunda a domingo), com `MailApp`, a partir da conta Google dona do script:
+
+- **Dias com mais de 2h de desvio**, no topo: cada dia em que alguém ficou mais de 2 horas acima ou abaixo das 8h
+  (blocos da manhã e da tarde face ao horário, mais o ajuste extraordinário), os dias tirados (−8h) e o trabalho ao fim
+  de semana ou em feriados registado na folha. Exatamente 2h não entra. Mostra a observação da funcionária e a nota da APJM.
+- **Por funcionária ativa**, o trabalho e o desvio da semana, e uma tabela com cada dia útil (manhã, tarde, ajuste, trabalho,
+  desvio e observação), com os dias em destaque a amarelo. Férias, feriados e dias sem registo aparecem assinalados.
+- O saldo total e os limites do mês não vão no email: estão na página da equipa, na app.
+
+As contas seguem as mesmas regras da app (`src/dados.js`), mas são feitas no Apps Script, diretamente a partir da folha.
+O limite do destaque (`limiteDestaqueMinutos`), a hora e o endereço da app estão em `RESUMO`, no `Code.gs`.
+
+| Função (Apps Script) | O que faz |
+| --- | --- |
+| `enviarResumoSemanal` | Envia já o resumo da semana atual. É também a função que o acionador corre aos sábados. |
+| `enviarResumoSemanaAnterior` | Envia já o resumo da semana passada (ex.: se o envio de sábado falhou). |
+| `criarAcionadorSemanal` | Liga o envio automático (sábados, 18:00, Europe/Lisbon). Pode correr-se outra vez sem duplicar. |
+| `removerAcionadorSemanal` | Desliga o envio automático. |
+
+Os destinatários estão no separador `Configuracao`, linha `email_resumo`, coluna `valor` (o email do executivo).
+Se estiver vazio, o envio dá erro e o Google avisa por email o dono do script. O Google corre o acionador perto da hora
+pedida (até cerca de 15 minutos de diferença).
 
 ## Regras de cálculo
 
@@ -163,6 +191,12 @@ e os valores (limites, data de início, máximo diário, passo de 15 minutos, ta
    Copie o URL que termina em `/exec`.
 
 Sempre que alterar o `Code.gs`, faça **Implementar › Gerir implementações › Editar › Nova versão**, para que o URL continue o mesmo.
+
+**Resumo semanal por email.** Depois de colar o `Code.gs` e correr `configurar`:
+1. No separador `Configuracao`, escreva o email do executivo na coluna `valor` da linha `email_resumo`.
+2. No Apps Script, escolha `enviarResumoSemanal` e clique em **Executar**. Na primeira vez, o Google pede autorização para enviar
+   emails e gerir acionadores: aceite. Confirme que o email chegou.
+3. Escolha `criarAcionadorSemanal` e clique em **Executar**. O acionador aparece em **Acionadores** (ícone do relógio).
 
 **Atualizar uma folha antiga.** Sempre que o `Code.gs` traz colunas novas, depois de o colar:
 1. Corra outra vez a função `configurar`. Ela acrescenta as colunas que faltam: `dias_ferias`, `entrada_manha`, `saida_manha`, `entrada_tarde` e `saida_tarde` em `Funcionarios`, e `tipo`, `entrada_manha`, `saida_manha`, `entrada_tarde`, `saida_tarde`, `ajuste` e `observacao` em `Registos`. Também preenche o que estiver vazio: o horário habitual da Mariana (10:00–14:00 e 15:00–19:00) e da Vera (09:30–14:00 e 15:00–18:30), e 22 dias de férias para cada pessoa. Não apaga nem altera mais nada: as colunas antigas `entrada`, `saida` e `pausa` ficam, para os registos antigos.

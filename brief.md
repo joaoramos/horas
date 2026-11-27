@@ -29,6 +29,11 @@ Esta web app permite aos funcionários registar as suas horas de trabalho, e ger
 - Cada funcionário consegue ver as regras de gestão e compensação de horas de trabalho
 - Cada funcionário consegue ver quando está em incomprimento
 
+## Experiência para o executivo
+- Todos os sábados às 18:00, o executivo recebe por email um resumo da semana: as horas de cada funcionária, dia a dia, com destaque para os dias com mais de 2 horas de desvio (ajustes aos blocos da manhã e da tarde, ajuste extraordinário e "Tirar o dia")
+- O resumo também pode ser enviado à mão, a qualquer momento, correndo uma função no Apps Script
+- Os destinatários do resumo definem-se na folha Google Sheets
+
 ## Considerações
 - A web app deverá ser servida via Cloudflare de forma gratuita (não pode exceder o plano gratuito)
 - Os dados deverão ser guardados numa folha Google Sheets de acesso público sem autenticação
